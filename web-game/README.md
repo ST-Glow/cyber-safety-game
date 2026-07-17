@@ -47,4 +47,4 @@ python -m http.server 4173 --bind 127.0.0.1
 
 调试视觉效果时可以打开 `http://127.0.0.1:4173/?recording=off`，跳过标签页共享提示；正式演示不要使用该参数。
 
-仅调试玩法且不连接上传服务时，可以增加 `upload=off`。真实 OSS、函数计算和 GitHub Pages 部署步骤见根目录 `CLOUD_UPLOAD_DEPLOYMENT.md`。
+仅调试玩法且不连接上传服务时，可以增加 `upload=off`。无备案的正式部署步骤见根目录 `VERCEL_UPLOAD_API_DEPLOYMENT.md`。

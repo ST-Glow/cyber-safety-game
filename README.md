@@ -1,54 +1,41 @@
-# 小学生网络安全保护游戏
+# 小学生网络安全保护 HTML 游戏
 
-这是一个 Unity Windows 桌面端课堂实验原型，面向小学 5-6 年级，主题为“个人信息保护”。当前实现重点是研究闭环：匿名进入、前测、游戏任务、后测、行为日志、游戏画面录制、Coze 介入适配、离线缓存与自动上传。
+这是面向小学 5–6 年级课堂实验的 HTML5 网页游戏，主题为“个人信息保护”。学生通过教师生成的匿名专属链接进入，无需安装软件；通关后行为序列、实验总结和游戏录像会自动上传到研究者的私有阿里云 OSS。
 
-## 打开方式
+## 正式运行结构
 
-1. 使用 Unity 6 或 Unity 2022 LTS 以上版本打开本目录。
-2. 等待 Unity 安装 `Input System` 和 `uGUI` 包。
-3. 在 Unity 菜单中执行 `Cyber Safety/Create Prototype Scene`。
-4. 打开生成的 `Assets/Scenes/Main.unity`，点击 Play。
+- `web-game/`：学生使用的 HTML、CSS 和 JavaScript 游戏。
+- GitHub Pages：提供公开 HTTPS 游戏网页。
+- Vercel：提供短期 OSS 授权与上传完成校验 API。
+- 私有阿里云 OSS：保存 `session.jsonl`、`summary.json`、MP4/WebM 录像和上传清单。
 
-## 当前功能
+Unity 目录仅作为早期原型备份保留，不参与网页构建、部署或课堂运行。
 
-- 匿名学生编号进入，不采集姓名、手机号、头像等真实身份。
-- 前测 - 游戏任务 - 后测流程。
-- 中间任务段是 2D 俯视闯关：使用 WASD 或方向键移动角色，收集黄色安全线索，避开红色风险点，到蓝色终端完成判断。
-- 当前美术使用 `Assets/StreamingAssets/art/` 中的儿童向临时素材：玩家角色、机器人助手、线索、风险、终端等。后续可以替换为正式商用资产包。
-- 行为事件写入 JSONL：点击、移动、题目选择、错误尝试、停滞、介入、完成等。
-- 30 秒无有效操作触发 `idle_or_stuck_episode`。
-- 默认 30 秒停滞时会自动打开 `Assets/StreamingAssets/coze-agent/agent.html` 中的 Coze 智能体页面；学生恢复操作后，下次再次停滞可再次触发。
-- Coze 介入通过 `InterventionAgentClient` 抽象，默认用 mock，正式环境建议由自有后端转发到 Coze。
-- 录屏只录 Unity 游戏画面，不录桌面、麦克风或摄像头。
-- 数据先写入本地，再按配置上传服务器。
+## 网页版功能
 
-## 本地数据
+- 教师预分配匿名学生编号，不采集真实姓名、手机号或头像。
+- 2D 俯视闯关：收集隐私密钥、避开巡逻风险、使用隐私护盾并完成终端判断。
+- 记录研究所需的点击、移动、错误尝试、停滞、风险接触、提示选择和任务完成事件。
+- 浏览器优先录制当前游戏标签页；不可用时退回只录游戏 Canvas，不录麦克风或摄像头。
+- 通关后自动上传三份实验文件；断网时保存在 IndexedDB 并自动重试、刷新后续传。
+- 只有服务端确认三份文件完整后，页面才显示“保存成功，可以关闭页面”。
 
-运行数据默认保存在：
+## 本地预览
 
-`Application.persistentDataPath/CyberSafetyResearch/sessions/<session_id>/`
+```powershell
+Set-Location web-game
+python -m http.server 4173 --bind 127.0.0.1
+```
 
-每个 session 包含：
+浏览器打开 `http://127.0.0.1:4173/?upload=off`。正式学生使用时不要添加 `upload=off`。
 
-- `session.jsonl`：事件流。
-- `summary.json`：会话摘要。
-- `recording.mp4`：如果找到 FFmpeg，会生成 MP4。
-- `frames/`：如果 FFmpeg 不可用，会退化为 PNG 帧序列。
+## 部署文档
 
-## 录屏依赖
-
-发布版 MP4 录制需要 FFmpeg。将 `ffmpeg.exe` 放到：
-
-`Assets/StreamingAssets/ffmpeg/bin/ffmpeg.exe`
-
-如果没有 FFmpeg，游戏仍会运行，并自动保存低帧率 PNG 帧序列，方便测试数据链路。
+- 无备案、自带 HTTPS 地址：`VERCEL_UPLOAD_API_DEPLOYMENT.md`
+- 网页运行与测试：`web-game/README.md`
+- 隐私与知情同意：`PRIVACY_AND_CONSENT.md`
+- 阿里云函数计算备选方案：`CLOUD_UPLOAD_DEPLOYMENT.md`
 
 ## 重要隐私约束
 
-本项目默认只采集研究所需的最少数据。课堂实验前应准备学校/监护人知情同意材料，说明采集目的、范围、保存期限和删除方式。详见 `PRIVACY_AND_CONSENT.md`。
-
-## 网页版自动上传
-
-- 无备案、自带 HTTPS 地址的部署方式：`VERCEL_UPLOAD_API_DEPLOYMENT.md`
-- 阿里云函数计算部署方式：`CLOUD_UPLOAD_DEPLOYMENT.md`
-- 网页运行与测试说明：`web-game/README.md`
+课堂实验前应准备学校和监护人知情同意材料，明确采集内容、研究用途、保存期限与删除方式。学生录像和日志不得设置为公开访问。
