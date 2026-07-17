@@ -83,4 +83,12 @@ $env:UPLOAD_LINK_SECRET = "与Vercel相同的密钥"
 node tools/generate-student-links.cjs --base-url https://st-glow.github.io/cyber-safety-game/ --class CLASS-5A --students S001,S002,S003 --hours 12 --output generated/student-links.csv
 ```
 
+人数较多时不需要逐个输入编号。下面的命令会自动生成 `P001` 到 `P030`，每个人都有不同的签名令牌和 `upload_id`：
+
+```powershell
+node tools/generate-student-links.cjs --base-url https://st-glow.github.io/cyber-safety-game/ --class PILOT-A --count 30 --prefix P --hours 24 --output generated/PILOT-A-links.csv
+```
+
+每批只需在教师电脑上输入一次与 Vercel 相同的 `UPLOAD_LINK_SECRET`。该主密钥不会写入 CSV；CSV 只包含已经签名的个人链接。
+
 只把 CSV 中生成的专属链接发给学生，不直接发送无票据的 Pages 首页地址。

@@ -16,13 +16,36 @@ function csv(value) {
 
 const baseUrl = argument("base-url");
 const classId = argument("class");
-const students = argument("students").split(",").map((item) => item.trim().toUpperCase()).filter(Boolean);
+const explicitStudents = argument("students").split(",").map((item) => item.trim().toUpperCase()).filter(Boolean);
+const count = Number(argument("count", "0"));
+const start = Number(argument("start", "1"));
+const prefix = argument("prefix", "P").trim().toUpperCase();
 const output = argument("output");
 const hours = Number(argument("hours", "12"));
 const secret = process.env.UPLOAD_LINK_SECRET || "";
 
-if (!baseUrl || !classId || students.length === 0 || !secret) {
-  console.error("Usage: set UPLOAD_LINK_SECRET, then pass --base-url, --class, --students S001,S002 and optional --hours/--output");
+if (explicitStudents.length > 0 && count > 0) {
+  console.error("Choose either --students or --count, not both");
+  process.exit(1);
+}
+
+let students = explicitStudents;
+if (count > 0) {
+  if (!Number.isInteger(count) || count > 1000 || !Number.isInteger(start) || start < 0 || !/^[A-Z0-9_-]{1,40}$/.test(prefix)) {
+    console.error("--count must be 1-1000, --start must be a non-negative integer, and --prefix must use A-Z, 0-9, _ or -");
+    process.exit(1);
+  }
+  const width = Math.max(3, String(start + count - 1).length);
+  students = Array.from({ length: count }, (_, index) => `${prefix}${String(start + index).padStart(width, "0")}`);
+}
+
+if (new Set(students).size !== students.length) {
+  console.error("Participant codes must be unique");
+  process.exit(1);
+}
+
+if (!baseUrl || !classId || students.length === 0 || !secret || !Number.isFinite(hours) || hours <= 0) {
+  console.error("Usage: set UPLOAD_LINK_SECRET, then pass --base-url, --class, either --students S001,S002 or --count 30 [--prefix P], and optional --start/--hours/--output");
   process.exit(1);
 }
 
