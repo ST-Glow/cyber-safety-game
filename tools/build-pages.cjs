@@ -15,7 +15,7 @@ if (!/^https:\/\//i.test(apiBaseUrl)) {
 fs.rmSync(destination, { recursive: true, force: true });
 fs.cpSync(source, destination, {
   recursive: true,
-  filter: (entry) => !entry.endsWith(".log") && !entry.endsWith("upload-test.html"),
+  filter: (entry) => !entry.endsWith(".log"),
 });
 
 const configPath = path.join(destination, "upload-config.js");

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>自动上传本地测试</title>
+    <title>自动上传真实 OSS 测试</title>
     <style>
       body { max-width: 680px; margin: 60px auto; padding: 24px; color: #17304b; font: 17px/1.6 system-ui, sans-serif; }
       main { padding: 28px; border: 1px solid #afd1dc; border-radius: 12px; background: #f4fcff; }
@@ -13,8 +13,8 @@
   </head>
   <body>
     <main>
-      <h1>自动上传本地测试</h1>
-      <p>此页面只用于开发环境，会向本机模拟 API 上传三份无敏感信息的测试文件。</p>
+      <h1>自动上传真实 OSS 测试</h1>
+      <p>此页面会通过正式上传 API 向 OSS 上传三份无敏感信息的合成测试文件，仅用于部署验收。</p>
       <button id="runTest" type="button">运行三文件上传测试</button>
       <div id="status" aria-live="polite">等待测试</div>
     </main>
