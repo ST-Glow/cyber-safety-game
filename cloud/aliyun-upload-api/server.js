@@ -1,6 +1,6 @@
 "use strict";
 
-const { createApp } = require("./src/app");
+const { createApp } = require("./src/create-app");
 
 const port = Number(process.env.PORT || 9000);
 const app = createApp();

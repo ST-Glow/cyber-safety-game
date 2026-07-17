@@ -6,7 +6,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const { createTicket } = require("../src/auth");
-const { createApp } = require("../src/app");
+const { createApp } = require("../src/create-app");
 const { createCloudAdapter } = require("../src/cloud");
 
 test("mock API accepts three files and writes a manifest", async (context) => {
