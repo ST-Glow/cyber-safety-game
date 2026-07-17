@@ -2,7 +2,7 @@
   "name": "cyber-safety-aliyun-upload-api",
   "version": "1.0.0",
   "private": true,
-  "description": "Function Compute API for scoped OSS uploads from the classroom web game",
+  "description": "STS and verification API for scoped OSS uploads from the classroom web game",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

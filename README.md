@@ -46,3 +46,9 @@
 ## 重要隐私约束
 
 本项目默认只采集研究所需的最少数据。课堂实验前应准备学校/监护人知情同意材料，说明采集目的、范围、保存期限和删除方式。详见 `PRIVACY_AND_CONSENT.md`。
+
+## 网页版自动上传
+
+- 无备案、自带 HTTPS 地址的部署方式：`VERCEL_UPLOAD_API_DEPLOYMENT.md`
+- 阿里云函数计算部署方式：`CLOUD_UPLOAD_DEPLOYMENT.md`
+- 网页运行与测试说明：`web-game/README.md`
