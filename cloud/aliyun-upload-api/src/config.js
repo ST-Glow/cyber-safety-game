@@ -17,6 +17,8 @@ function loadConfig(environment = process.env) {
     ossInternal: environment.OSS_INTERNAL === "true",
     mockRoot: environment.MOCK_OSS_ROOT || "",
     publicBaseUrl: String(environment.PUBLIC_BASE_URL || "").replace(/\/$/, ""),
+    cozeApiToken: environment.COZE_API_TOKEN || "",
+    cozeBotId: environment.COZE_BOT_ID || "",
   };
   validateConfig(config);
   return config;
@@ -37,6 +39,9 @@ function validateConfig(config) {
     ]) {
       if (!value) throw new Error(`${key} is required outside local mock mode`);
     }
+  }
+  if (config.cozeBotId && !/^[A-Za-z0-9_-]{6,64}$/.test(config.cozeBotId)) {
+    throw new Error("COZE_BOT_ID is invalid");
   }
   return config;
 }

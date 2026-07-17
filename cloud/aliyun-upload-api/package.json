@@ -9,7 +9,7 @@
     "test": "node --test"
   },
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   },
   "dependencies": {
     "@alicloud/pop-core": "^1.8.0",

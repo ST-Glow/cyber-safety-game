@@ -1,266 +1,185 @@
 (() => {
   "use strict";
 
-  const sdkUrl = "https://lf-cdn.coze.cn/obj/unpkg/flow-platform/chat-app-sdk/1.2.0-beta.19/libs/cn/index.js";
-  const agentConfig = {
-    botId: "7649339604520697891",
-    title: "五年级助思老师",
-    tokenEndpoint: window.CYBER_COZE_CONFIG?.tokenEndpoint || "",
+  const config = {
+    apiBaseUrl: String(window.CYBER_UPLOAD_CONFIG?.apiBaseUrl || "").replace(/\/$/, ""),
+    ticket: new URLSearchParams(window.location.search).get("ticket") || "",
+    title: "助思智能体",
   };
 
-  let sdkLoadPromise = null;
-  let chatClient = null;
   let initialized = false;
-  let openMethodName = "";
-
-  function getSdkRoots() {
-    const roots = [];
-    const knownRoot = document.getElementById("coze-web-chat");
-    if (knownRoot) roots.push(knownRoot);
-
-    Array.from(document.body.children).forEach((child) => {
-      if (!(child instanceof HTMLElement)) return;
-      if (child.id === "app") return;
-      if (child.id && child.id.startsWith("semi-image-preview")) return;
-      if (child.tagName !== "DIV") return;
-      if (child.closest("#agentOverlay")) return;
-      roots.push(child);
-    });
-
-    return Array.from(new Set(roots));
-  }
-
-  function markClientDebug() {
-    if (!chatClient) return;
-    const ownKeys = Object.keys(chatClient);
-    const protoKeys = Object.getOwnPropertyNames(Object.getPrototypeOf(chatClient) || {});
-    document.documentElement.dataset.cozeClientKeys = Array.from(new Set([...ownKeys, ...protoKeys])).join(",");
-    document.documentElement.dataset.cozeOpenMethod = openMethodName || "";
-  }
-
-  function callLikelyOpenMethod() {
-    if (!chatClient) return false;
-    const methodNames = [
-      "open",
-      "show",
-      "showChat",
-      "openChat",
-      "toggle",
-      "toggleChat",
-      "expand",
-      "showPanel",
-    ];
-
-    for (const name of methodNames) {
-      if (typeof chatClient[name] !== "function") continue;
-      try {
-        chatClient[name]();
-        openMethodName = name;
-        markClientDebug();
-        return true;
-      } catch {
-        // Try the next known method name.
-      }
-    }
-
-    markClientDebug();
-    return false;
-  }
+  let sending = false;
+  let session = "";
+  let messages = null;
+  let input = null;
+  let submitButton = null;
 
   function setFallback(message, state = "loading") {
     const fallback = document.getElementById("agentFallback");
     if (!fallback) return;
     fallback.textContent = message;
     fallback.dataset.state = state;
+    fallback.classList.remove("hidden");
   }
 
-  function loadSdk() {
-    if (window.CozeWebSDK?.WebChatClient) {
-      return Promise.resolve();
-    }
-    if (sdkLoadPromise) {
-      return sdkLoadPromise;
+  function hideFallback() {
+    document.getElementById("agentFallback")?.classList.add("hidden");
+  }
+
+  function addMessage(role, text, options = {}) {
+    if (!messages) return null;
+    const bubble = document.createElement("div");
+    bubble.className = `coze-proxy-message ${role}`;
+    if (options.pending) bubble.classList.add("pending");
+    bubble.textContent = text;
+    messages.appendChild(bubble);
+    messages.scrollTop = messages.scrollHeight;
+    return bubble;
+  }
+
+  function errorMessage(code) {
+    const messagesByCode = {
+      coze_not_configured: "智能体服务尚未完成配置，请联系教师。",
+      coze_rate_limited: "提问有些频繁，请稍等一会儿再试。",
+      ticket_expired: "这个课堂链接已经过期，请向教师领取新链接。",
+      ticket_malformed: "当前不是有效的课堂专属链接。",
+      ticket_signature_invalid: "当前课堂链接无效，请向教师重新领取。",
+      origin_not_allowed: "当前网站地址未获智能体服务授权。",
+      coze_message_invalid: "问题需要控制在 800 个字符以内。",
+    };
+    return messagesByCode[code] || "智能体暂时无法回答，请稍后再试。";
+  }
+
+  async function sendMessage(rawMessage) {
+    const message = String(rawMessage || "").trim();
+    if (!message || sending) return;
+    if (message.length > 800) {
+      addMessage("system", "问题需要控制在 800 个字符以内。");
+      return;
     }
 
-    sdkLoadPromise = new Promise((resolve, reject) => {
-      const existing = document.querySelector(`script[src="${sdkUrl}"]`);
-      if (existing) {
-        existing.addEventListener("load", resolve, { once: true });
-        existing.addEventListener("error", () => reject(new Error("Coze SDK failed to load")), { once: true });
+    sending = true;
+    submitButton.disabled = true;
+    input.disabled = true;
+    addMessage("user", message);
+    input.value = "";
+    const pending = addMessage("assistant", "正在思考…", { pending: true });
+
+    try {
+      const response = await fetch(`${config.apiBaseUrl}/api/coze/chat`, {
+        method: "POST",
+        credentials: "omit",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticket: config.ticket, message, session: session || undefined }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      pending?.remove();
+      if (!response.ok || !payload.reply) {
+        addMessage("system", errorMessage(payload.code));
+        window.dispatchEvent(new CustomEvent("cyber-agent-response", { detail: { ok: false, code: payload.code || "request_failed" } }));
         return;
       }
-
-      const script = document.createElement("script");
-      script.src = sdkUrl;
-      script.async = true;
-      script.onload = resolve;
-      script.onerror = () => reject(new Error("Coze SDK failed to load"));
-      document.head.appendChild(script);
-
-      window.setTimeout(() => {
-        if (!window.CozeWebSDK?.WebChatClient) {
-          reject(new Error("Coze SDK load timeout"));
-        }
-      }, 12000);
-    });
-
-    return sdkLoadPromise;
+      session = payload.session || session;
+      addMessage("assistant", payload.reply);
+      window.dispatchEvent(new CustomEvent("cyber-agent-response", { detail: { ok: true } }));
+    } catch {
+      pending?.remove();
+      addMessage("system", "网络连接失败。请检查网络后再试，游戏进度不会受到影响。");
+      window.dispatchEvent(new CustomEvent("cyber-agent-response", { detail: { ok: false, code: "network_error" } }));
+    } finally {
+      sending = false;
+      submitButton.disabled = false;
+      input.disabled = false;
+      input.focus();
+    }
   }
 
-  async function getAgentToken() {
-    if (!agentConfig.tokenEndpoint) {
-      throw new Error("coze_token_endpoint_not_configured");
-    }
-    const response = await fetch(agentConfig.tokenEndpoint, { credentials: "omit" });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || !payload.token) {
-      throw new Error(payload.message || "coze_token_request_failed");
-    }
-    return payload.token;
+  function addSuggestion(container, label, message) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "coze-proxy-suggestion";
+    button.textContent = label;
+    button.addEventListener("click", () => sendMessage(message));
+    container.appendChild(button);
   }
 
-  function moveSdkNodeIntoDrawer() {
+  function initialize() {
+    if (initialized) return;
     const mount = document.getElementById("cozeAgentMount");
-    const chatNodes = getSdkRoots();
-    if (!mount || chatNodes.length === 0) return false;
+    if (!mount) throw new Error("agent_mount_missing");
 
-    chatNodes.forEach((chatNode) => {
-      if (chatNode.parentElement !== mount) {
-        mount.appendChild(chatNode);
+    const shell = document.createElement("section");
+    shell.className = "coze-proxy-chat";
+
+    const header = document.createElement("header");
+    header.className = "coze-proxy-header";
+    const title = document.createElement("strong");
+    title.textContent = config.title;
+    const privacy = document.createElement("span");
+    privacy.textContent = "由扣子提供回答 · 请勿输入姓名、电话等个人信息";
+    header.append(title, privacy);
+
+    messages = document.createElement("div");
+    messages.className = "coze-proxy-messages";
+    messages.setAttribute("role", "log");
+    messages.setAttribute("aria-live", "polite");
+
+    const suggestions = document.createElement("div");
+    suggestions.className = "coze-proxy-suggestions";
+    addSuggestion(suggestions, "给我一个提示", "我在当前游戏关卡卡住了。请只给我一个简短提示，不要直接公布答案。");
+    addSuggestion(suggestions, "讲讲隐私保护", "请结合这个网络安全游戏，用清楚、简洁的话提醒我保护个人信息时最重要的做法。");
+
+    const form = document.createElement("form");
+    form.className = "coze-proxy-form";
+    input = document.createElement("textarea");
+    input.rows = 2;
+    input.maxLength = 800;
+    input.placeholder = "说说你卡在哪里……";
+    input.setAttribute("aria-label", "向助思智能体提问");
+    submitButton = document.createElement("button");
+    submitButton.type = "submit";
+    submitButton.textContent = "发送";
+    form.append(input, submitButton);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      sendMessage(input.value);
+    });
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        form.requestSubmit();
       }
-      chatNode.classList.add("coze-agent-embedded");
     });
 
-    return chatNodes.some((node) => {
-      const text = (node.textContent || "").trim();
-      return text.length > 0 || Boolean(node.querySelector("button, iframe, input, textarea, [role='button'], [role='textbox']"));
-    });
-  }
-
-  function hasSdkRoot() {
-    const mount = document.getElementById("cozeAgentMount");
-    if (!mount) return false;
-    return Boolean(mount.querySelector(".coze-agent-embedded"));
-  }
-
-  function hasVisibleChatSurface() {
-    const mount = document.getElementById("cozeAgentMount");
-    if (!mount) return false;
-    const roots = Array.from(mount.querySelectorAll(".coze-agent-embedded"));
-    return roots.some((node) => {
-      const text = (node.textContent || "").trim();
-      return text.length > 0 || Boolean(node.querySelector("button, iframe, input, textarea, [role='button'], [role='textbox']"));
-    });
-  }
-
-  function markMissingSurface() {
-    if (hasVisibleChatSurface()) {
-      setFallback("守护助手已接入。可以在这里提问，也可以点击上方继续游戏。", "ready");
-      return;
-    }
-
-    if (hasSdkRoot()) {
-      setFallback("智能体 SDK 已接入，但聊天窗口还没有展开。请检查该智能体的发布配置或网络权限。", "error");
-      return;
-    }
-
-    setFallback("智能体加载失败，请检查网络后继续游戏。行为日志仍会正常保存。", "error");
-  }
-
-  function clickLikelyLauncher() {
-    const mount = document.getElementById("cozeAgentMount");
-    if (!mount) return false;
-
-    const candidates = [
-      "#coze-web-chat button",
-      "#coze-web-chat [role='button']",
-      "#coze-web-chat .chat-button",
-      "#coze-web-chat .coze-chat-button",
-    ];
-
-    for (const selector of candidates) {
-      const button = mount.querySelector(selector);
-      if (button instanceof HTMLElement) {
-        button.click();
-        return true;
-      }
-    }
-    return false;
-  }
-
-  function arrangeSdkInDrawer(attempt = 0) {
-    const moved = moveSdkNodeIntoDrawer();
-    callLikelyOpenMethod();
-    const clicked = clickLikelyLauncher();
-
-    if (moved || hasVisibleChatSurface()) {
-      setFallback("守护助手已接入。可以在这里提问，也可以点击上方继续游戏。", "ready");
-    }
-
-    if ((!moved || !clicked) && attempt < 24) {
-      window.setTimeout(() => arrangeSdkInDrawer(attempt + 1), 250);
-    } else if (!hasVisibleChatSurface()) {
-      markMissingSurface();
-    }
+    shell.append(header, messages, suggestions, form);
+    mount.replaceChildren(shell);
+    addMessage("assistant", "你好，我是助思智能体。你可以告诉我卡在哪里，我会尽量只给提示，不直接替你完成任务。");
+    initialized = true;
   }
 
   async function open() {
-    setFallback("正在接入守护助手，请稍等。", "loading");
-    let hardTimeoutId = 0;
-
     try {
-      await Promise.race([
-        loadSdk(),
-        new Promise((_, reject) => {
-          hardTimeoutId = window.setTimeout(() => {
-            reject(new Error("Coze SDK load timeout"));
-          }, 12000);
-        }),
-      ]);
-      window.clearTimeout(hardTimeoutId);
-
-      if (!window.CozeWebSDK?.WebChatClient) {
-        throw new Error("Coze SDK is unavailable");
+      if (!config.apiBaseUrl || config.apiBaseUrl.includes("__UPLOAD_API_BASE_URL__")) {
+        throw new Error("agent_api_not_configured");
       }
-
-      if (!initialized) {
-        const token = await getAgentToken();
-        chatClient = new window.CozeWebSDK.WebChatClient({
-          config: {
-            bot_id: agentConfig.botId,
-          },
-          componentProps: {
-            title: agentConfig.title,
-          },
-          auth: {
-            type: "token",
-            token,
-            onRefreshToken: getAgentToken,
-          },
-        });
-        initialized = true;
-        markClientDebug();
-      }
-
-      arrangeSdkInDrawer();
-
-      return { ok: true, reused: Boolean(chatClient) };
+      if (!config.ticket) throw new Error("signed_ticket_missing");
+      initialize();
+      hideFallback();
+      window.setTimeout(() => input?.focus(), 80);
+      return { ok: true, mode: "server_proxy" };
     } catch (error) {
-      window.clearTimeout(hardTimeoutId);
-      sdkLoadPromise = null;
-      setFallback("智能体加载失败，请检查网络后继续游戏。行为日志仍会正常保存。", "error");
+      const message = error.message === "signed_ticket_missing"
+        ? "请使用教师发放的课堂专属链接进入，才能使用智能体。"
+        : "智能体服务尚未配置完成，请联系教师。";
+      setFallback(message, "error");
       return { ok: false, error: error.message };
     }
   }
 
   function close() {
-    setFallback("守护助手已暂停。下次停滞时会再次接入。", "idle");
+    input?.blur();
   }
 
-  window.CyberSafetyCozeAgent = {
-    open,
-    close,
-  };
-
-  document.documentElement.dataset.cozeAgentModule = "ready";
+  window.CyberSafetyCozeAgent = { open, close };
+  document.documentElement.dataset.cozeAgentModule = "server-proxy-ready";
 })();

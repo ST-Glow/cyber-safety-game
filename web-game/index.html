@@ -86,7 +86,7 @@
                 <img src="assets/assistant.png" alt="守护助手" class="agent-choice-avatar">
                 <p class="agent-choice-eyebrow">检测到你已经停留了一会儿</p>
                 <h3>你现在需要哪种帮助？</h3>
-                <p class="agent-choice-copy">必须选择一项才能继续。这里只记录你的选择，不记录聊天内容。</p>
+                <p class="agent-choice-copy">必须选择一项才能继续。游戏行为日志不记录聊天内容；提问会发送给扣子智能体处理。</p>
                 <div class="agent-choice-actions">
                   <button id="agentNeedHelp" type="button" class="agent-choice primary">
                     <strong>我需要提示</strong>
@@ -98,9 +98,9 @@
                   </button>
                 </div>
               </div>
-              <div id="cozeAgentMount" class="coze-agent-mount hidden" aria-label="Coze 守护助手聊天区域"></div>
+              <div id="cozeAgentMount" class="coze-agent-mount hidden" aria-label="扣子助思智能体聊天区域"></div>
               <div id="agentFallback" class="agent-fallback">
-                正在接入守护助手。如果长时间没有出现聊天窗口，请确认电脑已联网，并允许浏览器访问 Coze SDK。
+                正在通过安全服务接入助思智能体。
               </div>
             </div>
           </div>

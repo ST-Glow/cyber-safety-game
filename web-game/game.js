@@ -911,7 +911,7 @@
     }
     logEvent("agent_overlay_opened", {
       mode: "right_drawer_choice_gate",
-      agent_source: "grade5_zhusi_sdk",
+      agent_source: "coze_server_proxy",
       idle_seconds: stageSeconds,
       trigger_reason: triggerReason,
     });
@@ -945,24 +945,24 @@
     agentFallback.classList.remove("hidden");
     setAssistant("助思智能体正在接入。你可以描述自己卡在哪里。", "正在接入智能体");
     logEvent("agent_sdk_requested", {
-      mode: "right_drawer_sdk",
-      agent_source: "grade5_zhusi_sdk",
+      mode: "right_drawer_server_proxy",
+      agent_source: "coze_server_proxy",
     });
 
     if (window.CyberSafetyCozeAgent?.open) {
       window.CyberSafetyCozeAgent.open().then((result) => {
         if (!result?.ok) {
           logEvent("agent_sdk_load_failed", {
-            mode: "right_drawer_sdk",
-            agent_source: "grade5_zhusi_sdk",
+            mode: "right_drawer_server_proxy",
+            agent_source: "coze_server_proxy",
             reason: result?.error || "unknown",
           });
         }
       });
     } else {
       logEvent("agent_sdk_load_failed", {
-        mode: "right_drawer_sdk",
-        agent_source: "grade5_zhusi_sdk",
+        mode: "right_drawer_server_proxy",
+        agent_source: "coze_server_proxy",
         reason: "agent_module_missing",
       });
     }
@@ -1668,6 +1668,13 @@
   closeAgent.addEventListener("click", () => hideAgentOverlay("continue_game"));
   agentNeedHelp.addEventListener("click", () => handleAgentChoice("need_help"));
   agentTryAgain.addEventListener("click", () => handleAgentChoice("try_again"));
+  window.addEventListener("cyber-agent-response", (event) => {
+    logEvent("agent_response_received", {
+      ok: event.detail?.ok === true,
+      reason: event.detail?.ok === true ? "" : String(event.detail?.code || "unknown"),
+      content_recorded: false,
+    });
+  });
 
   document.addEventListener("pointerdown", (event) => {
     state.clicks += 1;
