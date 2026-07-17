@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>隐私核心护送行动</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main id="app" class="app">
+      <section class="stage" aria-label="个人信息护盾训练营游戏画面">
+        <canvas id="gameCanvas" width="1280" height="720"></canvas>
+
+        <header class="hud">
+          <div>
+            <span id="hudPhase" class="hud-label">准备</span>
+            <strong id="hudTitle">隐私核心护送行动</strong>
+          </div>
+          <div class="hud-stats">
+            <span id="hudShield">得分 100</span>
+            <span id="hudLevel">护送准备</span>
+            <span id="hudClues">密钥 0/3</span>
+            <span id="hudRisks">护盾就绪</span>
+          </div>
+        </header>
+
+        <aside class="assistant-panel">
+          <img src="assets/assistant.png" alt="守护助手" class="assistant-avatar">
+          <h2>守护助手</h2>
+          <p id="idleCountdown" class="assistant-subtitle">正在等待演示开始</p>
+          <div id="assistantBubble" class="assistant-bubble">
+            护送隐私核心穿过训练基地。收集三枚密钥，避开巡逻机器人，按空格开启护盾。
+          </div>
+        </aside>
+
+        <section id="screenOverlay" class="screen-overlay visible">
+          <div class="mission-card">
+            <p id="screenKicker" class="kicker">教师演示版 · 单关任务</p>
+            <h1 id="screenTitle">隐私核心护送行动</h1>
+            <p id="screenText">
+              用 WASD 或方向键移动，按空格开启 2.5 秒护盾。收集三枚隐私密钥后抵达安全终端。开始时请选择共享“当前标签页”并关闭音频。
+            </p>
+            <div id="codeRow" class="code-row hidden">
+              <label for="studentCode">匿名编号</label>
+              <input id="studentCode" maxlength="18" autocomplete="off" placeholder="例如 S001">
+            </div>
+            <div id="quizBox" class="quiz-box hidden"></div>
+            <div id="screenActions" class="actions">
+              <button id="primaryAction" class="primary-action" type="button">开始护送</button>
+            </div>
+            <section id="uploadPanel" class="upload-panel hidden" aria-live="polite">
+              <div class="upload-status-row">
+                <span id="uploadStatusIcon" class="upload-status-icon">☁</span>
+                <div>
+                  <strong id="uploadStatusTitle">正在准备保存</strong>
+                  <p id="uploadStatusText">请不要关闭这个页面。</p>
+                </div>
+              </div>
+              <div class="upload-progress-track" aria-hidden="true">
+                <span id="uploadProgressBar"></span>
+              </div>
+              <p id="uploadProgressText" class="upload-progress-text">0%</p>
+            </section>
+          </div>
+        </section>
+
+        <section id="terminalPanel" class="terminal-panel hidden" aria-live="polite">
+          <div>
+            <p id="terminalKicker" class="kicker">任务终端</p>
+            <h2 id="terminalQuestion">请选择最安全的做法</h2>
+          </div>
+          <div id="terminalOptions" class="terminal-options"></div>
+        </section>
+
+        <section id="agentOverlay" class="agent-overlay hidden" aria-live="assertive">
+          <div class="agent-shell">
+            <div class="agent-header">
+              <div>
+                <p id="agentKicker" class="kicker">12 秒无操作</p>
+                <h2>请选择接下来的行动</h2>
+              </div>
+              <button id="closeAgent" type="button" class="ghost-action" disabled>请先选择</button>
+            </div>
+            <div class="agent-body">
+              <div id="agentChoiceGate" class="agent-choice-gate">
+                <img src="assets/assistant.png" alt="守护助手" class="agent-choice-avatar">
+                <p class="agent-choice-eyebrow">检测到你已经停留了一会儿</p>
+                <h3>你现在需要哪种帮助？</h3>
+                <p class="agent-choice-copy">必须选择一项才能继续。这里只记录你的选择，不记录聊天内容。</p>
+                <div class="agent-choice-actions">
+                  <button id="agentNeedHelp" type="button" class="agent-choice primary">
+                    <strong>我需要提示</strong>
+                    <span>打开助思智能体，帮我找到下一步</span>
+                  </button>
+                  <button id="agentTryAgain" type="button" class="agent-choice secondary">
+                    <strong>我想自己再试一次</strong>
+                    <span>回到原关卡，继续寻找线索</span>
+                  </button>
+                </div>
+              </div>
+              <div id="cozeAgentMount" class="coze-agent-mount hidden" aria-label="Coze 守护助手聊天区域"></div>
+              <div id="agentFallback" class="agent-fallback">
+                正在接入守护助手。如果长时间没有出现聊天窗口，请确认电脑已联网，并允许浏览器访问 Coze SDK。
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div id="toastRack" class="toast-rack" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <script src="upload-config.js"></script>
+    <script src="https://gosspublic.alicdn.com/aliyun-oss-sdk-6.20.0.min.js"></script>
+    <script src="upload-manager.js"></script>
+    <script src="coze-agent.js"></script>
+    <script src="game.js"></script>
+  </body>
+</html>

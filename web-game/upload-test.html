@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>自动上传本地测试</title>
+    <style>
+      body { max-width: 680px; margin: 60px auto; padding: 24px; color: #17304b; font: 17px/1.6 system-ui, sans-serif; }
+      main { padding: 28px; border: 1px solid #afd1dc; border-radius: 12px; background: #f4fcff; }
+      button { padding: 12px 18px; border: 0; border-radius: 8px; color: white; background: #148b78; font-weight: 800; cursor: pointer; }
+      #status { margin-top: 18px; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>自动上传本地测试</h1>
+      <p>此页面只用于开发环境，会向本机模拟 API 上传三份无敏感信息的测试文件。</p>
+      <button id="runTest" type="button">运行三文件上传测试</button>
+      <div id="status" aria-live="polite">等待测试</div>
+    </main>
+    <script src="upload-config.js"></script>
+    <script src="upload-manager.js"></script>
+    <script>
+      document.getElementById("runTest").addEventListener("click", async () => {
+        const status = document.getElementById("status");
+        const sessionId = `browser_test_${Date.now()}`;
+        const summary = {
+          schema_version: 1,
+          session_id: sessionId,
+          student_code: window.CyberSafetyUploader.getAssignment().studentCode,
+          started_at: new Date().toISOString(),
+          ended_at: new Date().toISOString(),
+          recording_mode: "synthetic_local_test",
+        };
+        try {
+          const result = await window.CyberSafetyUploader.queueAndUpload({
+            sessionId,
+            studentCode: summary.student_code,
+            summary,
+            eventsText: `${JSON.stringify({ session_id: sessionId, event_type: "browser_upload_test" })}\n`,
+            recordingBlob: new Blob(["synthetic-webm-test-bytes"], { type: "video/webm" }),
+            recordingExtension: "webm",
+            recordingMime: "video/webm",
+          }, (progress) => {
+            status.textContent = `${progress.phase} ${Math.round((progress.progress || 0) * 100)}%`;
+          });
+          status.textContent = `SUCCESS: ${result.status}`;
+        } catch (error) {
+          status.textContent = `FAILED: ${error.message}`;
+        }
+      });
+    </script>
+  </body>
+</html>

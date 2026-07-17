@@ -1,0 +1,46 @@
+name: Deploy web game to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web-game/**"
+      - "tools/build-pages.cjs"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build static site
+        env:
+          UPLOAD_API_BASE_URL: ${{ vars.UPLOAD_API_BASE_URL }}
+        run: node tools/build-pages.cjs
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
