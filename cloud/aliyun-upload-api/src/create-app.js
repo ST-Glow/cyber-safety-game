@@ -71,7 +71,14 @@ function createApp(options = {}) {
   });
 
   app.get("/api/health", (request, response) => {
-    response.json({ ok: true, mode: cloud.mode, coze_configured: coze.configured, time: new Date().toISOString() });
+    response.json({
+      ok: true,
+      mode: cloud.mode,
+      coze_configured: coze.configured,
+      coze_auth_mode: coze.authMode || "custom",
+      coze_bot_id: coze.botId || config.cozeBotId,
+      time: new Date().toISOString(),
+    });
   });
 
   if (cloud.mode === "mock") {

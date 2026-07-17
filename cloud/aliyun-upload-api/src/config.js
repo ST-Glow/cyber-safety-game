@@ -18,7 +18,10 @@ function loadConfig(environment = process.env) {
     mockRoot: environment.MOCK_OSS_ROOT || "",
     publicBaseUrl: String(environment.PUBLIC_BASE_URL || "").replace(/\/$/, ""),
     cozeApiToken: environment.COZE_API_TOKEN || "",
-    cozeBotId: environment.COZE_BOT_ID || "",
+    cozeBotId: "7647799189921284146",
+    cozeOauthClientId: environment.COZE_JWT_OAUTH_CLIENT_ID || "1167033540105",
+    cozeOauthPublicKeyId: environment.COZE_JWT_OAUTH_PUBLIC_KEY_ID || "4n-SysxRLNZl_43YXfv9A-M3N2oj0coo-5KJ9pz-aoU",
+    cozeOauthPrivateKey: environment.COZE_JWT_OAUTH_PRIVATE_KEY || "",
   };
   validateConfig(config);
   return config;

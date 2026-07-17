@@ -50,13 +50,15 @@ OSS_UPLOAD_ROLE_ARN=acs:ram::1906810925835797:role/cyber-safety-browser-upload
 OSS_INTERNAL=false
 ALIBABA_CLOUD_ACCESS_KEY_ID=<专用RAM用户AccessKey ID>
 ALIBABA_CLOUD_ACCESS_KEY_SECRET=<专用RAM用户AccessKey Secret>
-COZE_API_TOKEN=<扣子个人访问令牌PAT>
-COZE_BOT_ID=<已经发布到API渠道的扣子智能体ID>
+# 智能体 ID 已在服务端固定为 7647799189921284146，不需要环境变量
+COZE_JWT_OAUTH_CLIENT_ID=1167033540105
+COZE_JWT_OAUTH_PUBLIC_KEY_ID=4n-SysxRLNZl_43YXfv9A-M3N2oj0coo-5KJ9pz-aoU
+COZE_JWT_OAUTH_PRIVATE_KEY=<完整的private_key.pem内容>
 ```
 
-将 `UPLOAD_LINK_SECRET`、`ALIBABA_CLOUD_ACCESS_KEY_ID`、`ALIBABA_CLOUD_ACCESS_KEY_SECRET` 和 `COZE_API_TOKEN` 标记为 Sensitive。不要设置 `MOCK_OSS_ROOT`、`PUBLIC_BASE_URL` 或 `PORT`。
+将 `UPLOAD_LINK_SECRET`、`ALIBABA_CLOUD_ACCESS_KEY_ID`、`ALIBABA_CLOUD_ACCESS_KEY_SECRET` 和 `COZE_JWT_OAUTH_PRIVATE_KEY` 标记为 Sensitive。不要设置 `MOCK_OSS_ROOT`、`PUBLIC_BASE_URL` 或 `PORT`。
 
-`COZE_API_TOKEN` 只添加到 Vercel，不能写入 GitHub、GitHub Actions Variables 或任何网页文件。扣子智能体需要先发布到 API 渠道；如果曾把旧 Token 放进公开代码，应先在扣子后台撤销旧 Token，再创建新的 PAT。
+私钥只添加到 Vercel，不能写入 GitHub、GitHub Actions Variables 或任何网页文件。后端会申请最长约 24 小时的 OAuth Access Token，在剩余不足 5 分钟或收到 401 时自动换取新令牌，不需要定时任务。扣子智能体需要先发布到 API 渠道；OAuth 验证成功后可以删除旧的 `COZE_API_TOKEN`。
 
 ## 4. 验证并连接 GitHub Pages
 
@@ -66,7 +68,7 @@ COZE_BOT_ID=<已经发布到API渠道的扣子智能体ID>
 https://<vercel-project>.vercel.app/api/health
 ```
 
-应返回包含 `"ok":true`、`"mode":"real"` 和 `"coze_configured":true` 的 JSON。若 `coze_configured` 为 `false`，说明 Vercel 中的两个 Coze 环境变量尚未同时配置。然后在 GitHub 仓库的 **Settings > Secrets and variables > Actions > Variables** 新增：
+应返回包含 `"ok":true`、`"mode":"real"`、`"coze_configured":true`、`"coze_auth_mode":"jwt_oauth"` 和 `"coze_bot_id":"7647799189921284146"` 的 JSON。若 `coze_configured` 为 `false`，说明 OAuth 环境变量尚未配置完整。然后在 GitHub 仓库的 **Settings > Secrets and variables > Actions > Variables** 新增：
 
 ```text
 UPLOAD_API_BASE_URL=https://<vercel-project>.vercel.app
