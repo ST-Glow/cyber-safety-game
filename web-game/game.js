@@ -1605,7 +1605,24 @@
 
   function prepareAssignmentUi() {
     const assignment = uploader?.getAssignment?.();
-    if (!assignment?.valid) return;
+    const uploadDisabledForTest = new URLSearchParams(window.location.search).get("upload") === "off";
+    if (uploadDisabledForTest) {
+      screenText.innerHTML = [
+        "当前为教师试玩模式，可以直接体验完整游戏流程。",
+        "试玩产生的数据不会上传到云端，也不会占用学生编号。",
+      ].join("<br>");
+      primaryAction.textContent = "开始教师试玩（不上传）";
+      return;
+    }
+    if (!assignment?.valid) {
+      screenText.innerHTML = [
+        "当前是教师访问的网站首页，不是学生专属实验链接。",
+        "点击下方可以试玩；正式实验时，请把带学生编号的专属链接发给学生。",
+      ].join("<br>");
+      primaryAction.textContent = "教师试玩（不上传）";
+      primaryAction.dataset.launchTeacherDemo = "true";
+      return;
+    }
     studentCodeInput.value = assignment.studentCode;
     screenText.innerHTML = [
       `你的匿名编号是：<strong>${escapeHtml(assignment.studentCode)}</strong>` ,
@@ -1637,7 +1654,17 @@
     }
   }
 
-  primaryAction.addEventListener("click", startSession);
+  primaryAction.addEventListener("click", () => {
+    if (primaryAction.dataset.launchTeacherDemo === "true") {
+      const demoUrl = new URL(window.location.href);
+      demoUrl.searchParams.set("upload", "off");
+      demoUrl.searchParams.delete("ticket");
+      demoUrl.searchParams.delete("student");
+      window.history.replaceState(null, "", demoUrl);
+      delete primaryAction.dataset.launchTeacherDemo;
+    }
+    startSession();
+  });
   closeAgent.addEventListener("click", () => hideAgentOverlay("continue_game"));
   agentNeedHelp.addEventListener("click", () => handleAgentChoice("need_help"));
   agentTryAgain.addEventListener("click", () => handleAgentChoice("try_again"));
