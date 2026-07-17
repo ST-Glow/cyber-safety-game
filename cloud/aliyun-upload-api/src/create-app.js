@@ -38,6 +38,13 @@ function cozeErrorStatus(code) {
 function cozeErrorResponse(response, error) {
   const code = String(error.code || error.message || "coze_request_failed");
   const status = cozeErrorStatus(code);
+  if (status >= 500) {
+    console.error(JSON.stringify({
+      event: "coze_request_failed",
+      code,
+      details: String(error.details || "").slice(0, 240),
+    }));
+  }
   const message = status === 502 ? "智能体暂时无法回答，请稍后重试" : code;
   errorResponse(response, status, code, message);
 }
@@ -103,6 +110,7 @@ function createApp(options = {}) {
       coze_configured: coze.configured,
       coze_auth_mode: coze.authMode || "custom",
       coze_bot_id: coze.botId || config.cozeBotId,
+      api_version: "coze_poll_v1",
       time: new Date().toISOString(),
     });
   });

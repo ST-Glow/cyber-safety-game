@@ -1,9 +1,11 @@
 (() => {
   "use strict";
 
+  const query = new URLSearchParams(window.location.search);
   const config = {
     apiBaseUrl: String(window.CYBER_UPLOAD_CONFIG?.apiBaseUrl || "").replace(/\/$/, ""),
-    ticket: new URLSearchParams(window.location.search).get("ticket") || "",
+    ticket: query.get("ticket") || "",
+    debug: query.get("debug") === "1",
     title: "助思智能体",
   };
 
@@ -51,7 +53,8 @@
       coze_message_invalid: "问题需要控制在 800 个字符以内。",
       coze_timeout: "智能体思考时间较长，请再试一次。",
     };
-    return messagesByCode[code] || "智能体暂时无法回答，请稍后再试。";
+    const message = messagesByCode[code] || "智能体暂时无法回答，请稍后再试。";
+    return config.debug && code ? `${message}（诊断码：${code}）` : message;
   }
 
   function wait(milliseconds) {
