@@ -16,11 +16,44 @@ function wait(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-function createCozeError(code, details = "") {
+function createCozeError(code, details = "", diagnosticId = "") {
   const error = new Error(code);
   error.code = code;
   error.details = details;
+  error.diagnosticId = diagnosticId;
   return error;
+}
+
+function logCozeEvent(diagnosticId, event, fields = {}, level = "log") {
+  if (!diagnosticId) return;
+  const record = JSON.stringify({
+    event,
+    diagnostic_id: diagnosticId,
+    ...fields,
+  });
+  const writer = typeof console[level] === "function" ? console[level] : console.log;
+  writer.call(console, record);
+}
+
+function safePrivateKeyInfo(value) {
+  const raw = String(value || "");
+  const normalized = normalizePrivateKey(raw);
+  const pemType = normalized.match(/-----BEGIN ([^-]+)-----/)?.[1] || "unknown";
+  return {
+    raw_length: raw.length,
+    normalized_length: normalized.length,
+    pem_type: pemType,
+    normalized_lines: normalized ? normalized.split(/\r?\n/).length : 0,
+  };
+}
+
+function providerLogId(response) {
+  return String(
+    response.headers.get("x-tt-logid")
+      || response.headers.get("x-request-id")
+      || response.headers.get("x-trace-id")
+      || "",
+  ).slice(0, 120);
 }
 
 function encodeJson(value) {
@@ -85,8 +118,21 @@ function createCozeAdapter(config) {
   let oauthCache = { token: "", expiresAt: 0 };
   let oauthRequest = null;
 
-  async function issueOauthAccessToken() {
-    const assertion = createJwtAssertion(config);
+  async function issueOauthAccessToken(diagnosticId) {
+    logCozeEvent(diagnosticId, "coze_oauth_exchange_started", { auth_mode: authMode });
+    let assertion;
+    try {
+      assertion = createJwtAssertion(config);
+    } catch (error) {
+      error.diagnosticId = diagnosticId;
+      logCozeEvent(
+        diagnosticId,
+        "coze_oauth_jwt_sign_failed",
+        safePrivateKeyInfo(config.cozeOauthPrivateKey),
+        "error",
+      );
+      throw error;
+    }
     let response;
     try {
       response = await fetch(`${COZE_API_BASE_URL}${OAUTH_TOKEN_PATH}`, {
@@ -102,13 +148,25 @@ function createCozeAdapter(config) {
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
     } catch (error) {
-      throw createCozeError(error.name === "TimeoutError" ? "coze_timeout" : "coze_oauth_network_error");
+      const code = error.name === "TimeoutError" ? "coze_timeout" : "coze_oauth_network_error";
+      logCozeEvent(diagnosticId, "coze_oauth_exchange_network_failed", { code }, "error");
+      throw createCozeError(code, "", diagnosticId);
     }
 
     const payload = await response.json().catch(() => ({}));
     const accessToken = String(payload.access_token || "");
+    logCozeEvent(diagnosticId, "coze_oauth_exchange_response", {
+      http_status: response.status,
+      provider_code: String(payload.code ?? payload.error ?? ""),
+      provider_log_id: providerLogId(response),
+      access_token_received: Boolean(accessToken),
+    }, response.ok && accessToken ? "log" : "error");
     if (!response.ok || !accessToken) {
-      throw createCozeError("coze_oauth_failed", payload.error_message || payload.error || `HTTP ${response.status}`);
+      throw createCozeError(
+        "coze_oauth_failed",
+        payload.error_message || payload.msg || payload.error || `HTTP ${response.status}`,
+        diagnosticId,
+      );
     }
     const expiresIn = Number(payload.expires_in);
     const ttl = Number.isFinite(expiresIn) && expiresIn > 0
@@ -118,25 +176,29 @@ function createCozeAdapter(config) {
       token: accessToken,
       expiresAt: Math.floor(Date.now() / 1000) + ttl,
     };
+    logCozeEvent(diagnosticId, "coze_oauth_token_cached", { expires_in_seconds: ttl });
     return accessToken;
   }
 
-  async function getAccessToken() {
+  async function getAccessToken(diagnosticId) {
     if (authMode === "pat") return config.cozeApiToken;
-    if (authMode !== "jwt_oauth") throw createCozeError("coze_not_configured");
+    if (authMode !== "jwt_oauth") throw createCozeError("coze_not_configured", "", diagnosticId);
     const nowSeconds = Math.floor(Date.now() / 1000);
     if (oauthCache.token && oauthCache.expiresAt - nowSeconds > OAUTH_RENEWAL_MARGIN_SECONDS) {
+      logCozeEvent(diagnosticId, "coze_oauth_token_cache_hit", {
+        remaining_seconds: oauthCache.expiresAt - nowSeconds,
+      });
       return oauthCache.token;
     }
     if (!oauthRequest) {
-      oauthRequest = issueOauthAccessToken().finally(() => {
+      oauthRequest = issueOauthAccessToken(diagnosticId).finally(() => {
         oauthRequest = null;
       });
     }
     return oauthRequest;
   }
 
-  async function performRequest(path, options, accessToken) {
+  async function performRequest(path, options, accessToken, diagnosticId, operation) {
     let response;
     try {
       response = await fetch(`${COZE_API_BASE_URL}${path}`, {
@@ -149,28 +211,41 @@ function createCozeAdapter(config) {
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
     } catch (error) {
-      throw createCozeError(error.name === "TimeoutError" ? "coze_timeout" : "coze_network_error");
+      const code = error.name === "TimeoutError" ? "coze_timeout" : "coze_network_error";
+      logCozeEvent(diagnosticId, "coze_api_network_failed", { operation, code }, "error");
+      throw createCozeError(code, "", diagnosticId);
     }
     const payload = await response.json().catch(() => ({}));
+    logCozeEvent(diagnosticId, "coze_api_response", {
+      operation,
+      http_status: response.status,
+      provider_code: String(payload.code ?? ""),
+      provider_log_id: providerLogId(response),
+    }, response.ok && payload.code === 0 ? "log" : "error");
     return { response, payload };
   }
 
-  async function request(path, options = {}) {
-    let accessToken = await getAccessToken();
-    let result = await performRequest(path, options, accessToken);
+  async function request(path, options = {}, diagnosticId = "", operation = "unknown") {
+    let accessToken = await getAccessToken(diagnosticId);
+    let result = await performRequest(path, options, accessToken, diagnosticId, operation);
     if (result.response.status === 401 && authMode === "jwt_oauth") {
+      logCozeEvent(diagnosticId, "coze_api_unauthorized_retry", { operation });
       oauthCache = { token: "", expiresAt: 0 };
-      accessToken = await getAccessToken();
-      result = await performRequest(path, options, accessToken);
+      accessToken = await getAccessToken(diagnosticId);
+      result = await performRequest(path, options, accessToken, diagnosticId, operation);
     }
     if (!result.response.ok || result.payload.code !== 0) {
-      throw createCozeError("coze_upstream_error", result.payload.msg || `HTTP ${result.response.status}`);
+      throw createCozeError(
+        "coze_upstream_error",
+        result.payload.msg || `HTTP ${result.response.status}`,
+        diagnosticId,
+      );
     }
     return result.payload.data;
   }
 
-  async function startChat({ message, conversationId, userId }) {
-    if (!configured) throw createCozeError("coze_not_configured");
+  async function startChat({ message, conversationId, userId, diagnosticId = "" }) {
+    if (!configured) throw createCozeError("coze_not_configured", "", diagnosticId);
     const conversationQuery = conversationId ? `?conversation_id=${encodeURIComponent(conversationId)}` : "";
     const created = await request(`/v3/chat${conversationQuery}`, {
       method: "POST",
@@ -185,7 +260,7 @@ function createCozeAdapter(config) {
           content_type: "text",
         }],
       },
-    });
+    }, diagnosticId, "chat_create");
 
     return {
       chatId: created.id,
@@ -194,35 +269,49 @@ function createCozeAdapter(config) {
     };
   }
 
-  async function getChatResult({ chatId, conversationId }) {
-    if (!configured) throw createCozeError("coze_not_configured");
-    const result = await request(`/v3/chat/retrieve?conversation_id=${encodeURIComponent(conversationId)}&chat_id=${encodeURIComponent(chatId)}`);
+  async function getChatResult({ chatId, conversationId, diagnosticId = "" }) {
+    if (!configured) throw createCozeError("coze_not_configured", "", diagnosticId);
+    const result = await request(
+      `/v3/chat/retrieve?conversation_id=${encodeURIComponent(conversationId)}&chat_id=${encodeURIComponent(chatId)}`,
+      {},
+      diagnosticId,
+      "chat_retrieve",
+    );
 
     if (!FINISHED_STATUSES.has(result.status)) {
       return { status: result.status || "in_progress" };
     }
 
     if (result.status !== "completed") {
-      throw createCozeError("coze_chat_failed", result.last_error?.msg || result.status);
+      throw createCozeError("coze_chat_failed", result.last_error?.msg || result.status, diagnosticId);
     }
 
-    const messages = await request(`/v3/chat/message/list?conversation_id=${encodeURIComponent(conversationId)}&chat_id=${encodeURIComponent(chatId)}`);
+    const messages = await request(
+      `/v3/chat/message/list?conversation_id=${encodeURIComponent(conversationId)}&chat_id=${encodeURIComponent(chatId)}`,
+      {},
+      diagnosticId,
+      "chat_message_list",
+    );
     const answer = [...messages].reverse().find((item) => item.role === "assistant" && item.type === "answer");
     const reply = String(answer?.content || "").trim();
-    if (!reply) throw createCozeError("coze_empty_response");
+    if (!reply) throw createCozeError("coze_empty_response", "", diagnosticId);
 
     return { status: "completed", reply };
   }
 
-  async function chat({ message, conversationId, userId }) {
-    const created = await startChat({ message, conversationId, userId });
+  async function chat({ message, conversationId, userId, diagnosticId = "" }) {
+    const created = await startChat({ message, conversationId, userId, diagnosticId });
 
     const deadline = Date.now() + MAX_WAIT_MS;
     let result = { status: created.status };
     while (true) {
-      if (Date.now() >= deadline) throw createCozeError("coze_timeout");
+      if (Date.now() >= deadline) throw createCozeError("coze_timeout", "", diagnosticId);
       if (!FINISHED_STATUSES.has(result.status)) await wait(POLL_INTERVAL_MS);
-      result = await getChatResult({ chatId: created.chatId, conversationId: created.conversationId });
+      result = await getChatResult({
+        chatId: created.chatId,
+        conversationId: created.conversationId,
+        diagnosticId,
+      });
       if (result.status === "completed") break;
     }
 

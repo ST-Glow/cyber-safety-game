@@ -42,7 +42,7 @@
     return bubble;
   }
 
-  function errorMessage(code) {
+  function errorMessage(code, diagnosticId = "") {
     const messagesByCode = {
       coze_not_configured: "智能体服务尚未完成配置，请联系教师。",
       coze_rate_limited: "提问有些频繁，请稍等一会儿再试。",
@@ -54,7 +54,9 @@
       coze_timeout: "智能体思考时间较长，请再试一次。",
     };
     const message = messagesByCode[code] || "智能体暂时无法回答，请稍后再试。";
-    return config.debug && code ? `${message}（诊断码：${code}）` : message;
+    if (!config.debug || !code) return message;
+    const reference = diagnosticId ? `，编号：${diagnosticId}` : "";
+    return `${message}（诊断码：${code}${reference}）`;
   }
 
   function wait(milliseconds) {
@@ -95,8 +97,8 @@
       });
       if (!response.ok) {
         pending?.remove();
-        addMessage("system", errorMessage(payload.code));
-        window.dispatchEvent(new CustomEvent("cyber-agent-response", { detail: { ok: false, code: payload.code || "request_failed" } }));
+        addMessage("system", errorMessage(payload.code, payload.diagnostic_id));
+        window.dispatchEvent(new CustomEvent("cyber-agent-response", { detail: { ok: false, code: payload.code || "request_failed", diagnosticId: payload.diagnostic_id || "" } }));
         return;
       }
 
@@ -104,8 +106,8 @@
       while (!payload.reply) {
         if (payload.status !== "pending" || !payload.poll) {
           pending?.remove();
-          addMessage("system", errorMessage(payload.code));
-          window.dispatchEvent(new CustomEvent("cyber-agent-response", { detail: { ok: false, code: payload.code || "request_failed" } }));
+          addMessage("system", errorMessage(payload.code, payload.diagnostic_id));
+          window.dispatchEvent(new CustomEvent("cyber-agent-response", { detail: { ok: false, code: payload.code || "request_failed", diagnosticId: payload.diagnostic_id || "" } }));
           return;
         }
         if (Date.now() >= deadline) {
@@ -121,8 +123,8 @@
         }));
         if (!response.ok) {
           pending?.remove();
-          addMessage("system", errorMessage(payload.code));
-          window.dispatchEvent(new CustomEvent("cyber-agent-response", { detail: { ok: false, code: payload.code || "request_failed" } }));
+          addMessage("system", errorMessage(payload.code, payload.diagnostic_id));
+          window.dispatchEvent(new CustomEvent("cyber-agent-response", { detail: { ok: false, code: payload.code || "request_failed", diagnosticId: payload.diagnostic_id || "" } }));
           return;
         }
       }

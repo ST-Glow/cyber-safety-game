@@ -1,5 +1,6 @@
 "use strict";
 
+const crypto = require("node:crypto");
 const express = require("express");
 const {
   verifyTicket,
@@ -35,18 +36,20 @@ function cozeErrorStatus(code) {
   return 502;
 }
 
-function cozeErrorResponse(response, error) {
+function cozeErrorResponse(response, error, fallbackDiagnosticId = "") {
   const code = String(error.code || error.message || "coze_request_failed");
   const status = cozeErrorStatus(code);
+  const diagnosticId = String(error.diagnosticId || fallbackDiagnosticId || "");
   if (status >= 500) {
     console.error(JSON.stringify({
       event: "coze_request_failed",
+      diagnostic_id: diagnosticId,
       code,
       details: String(error.details || "").slice(0, 240),
     }));
   }
   const message = status === 502 ? "智能体暂时无法回答，请稍后重试" : code;
-  errorResponse(response, status, code, message);
+  response.status(status).json({ code, message, diagnostic_id: diagnosticId });
 }
 
 function validateFile(info, key) {
@@ -110,7 +113,7 @@ function createApp(options = {}) {
       coze_configured: coze.configured,
       coze_auth_mode: coze.authMode || "custom",
       coze_bot_id: coze.botId || config.cozeBotId,
-      api_version: "coze_poll_v1",
+      api_version: "coze_diagnostics_v2",
       time: new Date().toISOString(),
     });
   });
@@ -134,6 +137,13 @@ function createApp(options = {}) {
   const json = express.json({ limit: "64kb" });
 
   app.post("/api/coze/chat", json, async (request, response) => {
+    const diagnosticId = crypto.randomUUID();
+    console.log(JSON.stringify({
+      event: "coze_request_started",
+      diagnostic_id: diagnosticId,
+      operation: "chat_create",
+      auth_mode: coze.authMode || "custom",
+    }));
     try {
       const body = request.body || {};
       const claims = verifyTicket(body.ticket, config.linkSecret);
@@ -161,6 +171,7 @@ function createApp(options = {}) {
         message,
         conversationId,
         userId: `web_${claims.upload_id}`,
+        diagnosticId,
       });
       const poll = createAgentPollToken({
         upload_id: claims.upload_id,
@@ -168,13 +179,25 @@ function createApp(options = {}) {
         chat_id: result.chatId,
         exp: Math.min(claims.exp, Math.floor(Date.now() / 1000) + 5 * 60),
       }, config.linkSecret);
-      response.json({ status: "pending", poll });
+      console.log(JSON.stringify({
+        event: "coze_request_accepted",
+        diagnostic_id: diagnosticId,
+        operation: "chat_create",
+      }));
+      response.json({ status: "pending", poll, diagnostic_id: diagnosticId });
     } catch (error) {
-      cozeErrorResponse(response, error);
+      cozeErrorResponse(response, error, diagnosticId);
     }
   });
 
   app.post("/api/coze/chat/status", json, async (request, response) => {
+    const diagnosticId = crypto.randomUUID();
+    console.log(JSON.stringify({
+      event: "coze_request_started",
+      diagnostic_id: diagnosticId,
+      operation: "chat_status",
+      auth_mode: coze.authMode || "custom",
+    }));
     try {
       const body = request.body || {};
       const claims = verifyTicket(body.ticket, config.linkSecret);
@@ -182,9 +205,10 @@ function createApp(options = {}) {
       const result = await coze.getChatResult({
         chatId: poll.chat_id,
         conversationId: poll.conversation_id,
+        diagnosticId,
       });
       if (result.status !== "completed") {
-        response.json({ status: "pending", poll: body.poll });
+        response.json({ status: "pending", poll: body.poll, diagnostic_id: diagnosticId });
         return;
       }
       const session = createAgentSession({
@@ -192,9 +216,14 @@ function createApp(options = {}) {
         conversation_id: poll.conversation_id,
         exp: claims.exp,
       }, config.linkSecret);
-      response.json({ status: "completed", reply: result.reply, session });
+      console.log(JSON.stringify({
+        event: "coze_request_completed",
+        diagnostic_id: diagnosticId,
+        operation: "chat_status",
+      }));
+      response.json({ status: "completed", reply: result.reply, session, diagnostic_id: diagnosticId });
     } catch (error) {
-      cozeErrorResponse(response, error);
+      cozeErrorResponse(response, error, diagnosticId);
     }
   });
 
