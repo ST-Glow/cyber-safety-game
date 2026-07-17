@@ -3,7 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
-const { createCozeAdapter } = require("../src/coze");
+const { createCozeAdapter, createJwtAssertion } = require("../src/coze");
 
 test("Coze adapter calls the official China API and returns only the final answer", async (context) => {
   const originalFetch = global.fetch;
@@ -49,6 +49,22 @@ test("Coze adapter stays disabled when server credentials are missing", async ()
   const adapter = createCozeAdapter({ cozeApiToken: "", cozeBotId: "", cozeOauthClientId: "", cozeOauthPublicKeyId: "", cozeOauthPrivateKey: "" });
   assert.equal(adapter.configured, false);
   await assert.rejects(() => adapter.chat({ message: "test", conversationId: "", userId: "test" }), /coze_not_configured/);
+});
+
+test("JWT OAuth accepts the single-line PEM shipped in the Coze download package", () => {
+  const { privateKey, publicKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const singleLinePem = privateKey.export({ type: "pkcs8", format: "pem" }).replace(/\r?\n/g, "");
+  const assertion = createJwtAssertion({
+    cozeOauthClientId: "1167033540105",
+    cozeOauthPublicKeyId: "public-key-id",
+    cozeOauthPrivateKey: singleLinePem,
+  });
+  const parts = assertion.split(".");
+  assert.equal(parts.length, 3);
+  assert.equal(
+    crypto.verify("RSA-SHA256", Buffer.from(`${parts[0]}.${parts[1]}`), publicKey, Buffer.from(parts[2], "base64url")),
+    true,
+  );
 });
 
 test("JWT OAuth token is generated once and reused until its renewal window", async (context) => {

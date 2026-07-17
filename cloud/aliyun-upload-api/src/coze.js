@@ -28,7 +28,26 @@ function encodeJson(value) {
 }
 
 function normalizePrivateKey(value) {
-  return String(value || "").replaceAll("\\n", "\n").trim();
+  let normalized = String(value || "")
+    .replaceAll("\\r\\n", "\n")
+    .replaceAll("\\n", "\n")
+    .trim();
+
+  if (
+    normalized.length >= 2
+    && ((normalized.startsWith('"') && normalized.endsWith('"'))
+      || (normalized.startsWith("'") && normalized.endsWith("'")))
+  ) {
+    normalized = normalized.slice(1, -1).trim();
+  }
+
+  const pem = normalized.match(/-----BEGIN (RSA PRIVATE KEY|PRIVATE KEY)-----([\s\S]*?)-----END \1-----/);
+  if (!pem) return normalized;
+
+  const body = pem[2].replace(/\s+/g, "");
+  if (!body) return normalized;
+  const lines = body.match(/.{1,64}/g) || [];
+  return `-----BEGIN ${pem[1]}-----\n${lines.join("\n")}\n-----END ${pem[1]}-----`;
 }
 
 function createJwtAssertion(config, nowSeconds = Math.floor(Date.now() / 1000)) {
