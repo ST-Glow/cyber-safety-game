@@ -107,7 +107,7 @@ test("JWT OAuth token is generated once and reused until its renewal window", as
   assert.equal(payload.exp - payload.iat, 600);
   assert.equal(JSON.parse(tokenCalls[0].options.body).duration_seconds, 86399);
 
-  const chatCalls = calls.filter((call) => call.url.includes("/v3/chat") && !call.url.includes("message/list"));
+  const chatCalls = calls.filter((call) => new URL(call.url).pathname === "/v3/chat");
   assert.equal(chatCalls.length, 2);
   assert.equal(chatCalls[0].options.headers.Authorization, "Bearer oauth-access-token");
   assert.equal(JSON.parse(chatCalls[0].options.body).bot_id, "7647799189921284146");

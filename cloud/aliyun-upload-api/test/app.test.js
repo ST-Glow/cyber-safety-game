@@ -91,14 +91,22 @@ test("Coze proxy authenticates the student and preserves a signed conversation",
     cozeBotId: "7649339604520697891",
   };
   const calls = [];
+  let statusChecks = 0;
   const coze = {
     configured: true,
-    async chat(input) {
-      calls.push(input);
+    async startChat(input) {
+      calls.push({ operation: "start", ...input });
       return {
+        chatId: `750000000000000000${calls.length + 1}`,
         conversationId: input.conversationId || "7500000000000000001",
-        reply: calls.length === 1 ? "先观察巡逻路线。" : "再试着等待机器人离开。",
+        status: "created",
       };
+    },
+    async getChatResult(input) {
+      calls.push({ operation: "status", ...input });
+      statusChecks += 1;
+      if (statusChecks === 1) return { status: "in_progress" };
+      return { status: "completed", reply: "先观察巡逻路线。" };
     },
   };
   const server = createApp({ config, cloud: createCloudAdapter(config), coze }).listen(0, "127.0.0.1");
@@ -119,21 +127,42 @@ test("Coze proxy authenticates the student and preserves a signed conversation",
   });
   assert.equal(firstResponse.status, 200);
   const first = await firstResponse.json();
-  assert.equal(first.reply, "先观察巡逻路线。");
-  assert.ok(first.session);
+  assert.equal(first.status, "pending");
+  assert.ok(first.poll);
   assert.equal(calls[0].userId, "web_upload_001");
   assert.equal(calls[0].conversationId, "");
+
+  const statusResponse = await fetch(`${base}/api/coze/chat/status`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:4173" },
+    body: JSON.stringify({ ticket, poll: first.poll }),
+  });
+  assert.equal(statusResponse.status, 200);
+  const waiting = await statusResponse.json();
+  assert.equal(waiting.status, "pending");
+  assert.equal(waiting.poll, first.poll);
+
+  const completedResponse = await fetch(`${base}/api/coze/chat/status`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:4173" },
+    body: JSON.stringify({ ticket, poll: first.poll }),
+  });
+  assert.equal(completedResponse.status, 200);
+  const completed = await completedResponse.json();
+  assert.equal(completed.status, "completed");
+  assert.equal(completed.reply, "先观察巡逻路线。");
+  assert.ok(completed.session);
 
   const secondResponse = await fetch(`${base}/api/coze/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:4173" },
-    body: JSON.stringify({ ticket, message: "然后呢", session: first.session }),
+    body: JSON.stringify({ ticket, message: "然后呢", session: completed.session }),
   });
   assert.equal(secondResponse.status, 200);
-  assert.equal(calls[1].conversationId, "7500000000000000001");
+  assert.equal(calls[3].conversationId, "7500000000000000001");
 
-  const last = first.session.slice(-1);
-  const tamperedSession = `${first.session.slice(0, -1)}${last === "a" ? "b" : "a"}`;
+  const last = completed.session.slice(-1);
+  const tamperedSession = `${completed.session.slice(0, -1)}${last === "a" ? "b" : "a"}`;
   const tamperedResponse = await fetch(`${base}/api/coze/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:4173" },

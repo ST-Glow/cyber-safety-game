@@ -1,7 +1,13 @@
 "use strict";
 
 const express = require("express");
-const { verifyTicket, createAgentSession, verifyAgentSession } = require("./auth");
+const {
+  verifyTicket,
+  createAgentSession,
+  verifyAgentSession,
+  createAgentPollToken,
+  verifyAgentPollToken,
+} = require("./auth");
 const { loadConfig } = require("./config");
 const { createCloudAdapter, objectNames, objectPrefix } = require("./cloud");
 const { createCozeAdapter } = require("./coze");
@@ -14,6 +20,26 @@ const LIMITS = {
 
 function errorResponse(response, status, code, message = code) {
   response.status(status).json({ code, message });
+}
+
+function cozeErrorStatus(code) {
+  if (code === "ticket_expired" || code === "agent_session_expired" || code === "agent_poll_expired") return 401;
+  if (
+    code.startsWith("ticket_")
+    || code.startsWith("agent_session_")
+    || code.startsWith("agent_poll_")
+    || code === "conversation_id_invalid"
+    || code === "chat_id_invalid"
+  ) return 400;
+  if (code === "coze_not_configured") return 503;
+  return 502;
+}
+
+function cozeErrorResponse(response, error) {
+  const code = String(error.code || error.message || "coze_request_failed");
+  const status = cozeErrorStatus(code);
+  const message = status === 502 ? "智能体暂时无法回答，请稍后重试" : code;
+  errorResponse(response, status, code, message);
 }
 
 function validateFile(info, key) {
@@ -123,25 +149,44 @@ function createApp(options = {}) {
         conversationId = session.conversation_id;
       }
 
-      const result = await coze.chat({
+      const result = await coze.startChat({
         message,
         conversationId,
         userId: `web_${claims.upload_id}`,
       });
-      const session = createAgentSession({
+      const poll = createAgentPollToken({
         upload_id: claims.upload_id,
         conversation_id: result.conversationId,
+        chat_id: result.chatId,
+        exp: Math.min(claims.exp, Math.floor(Date.now() / 1000) + 5 * 60),
+      }, config.linkSecret);
+      response.json({ status: "pending", poll });
+    } catch (error) {
+      cozeErrorResponse(response, error);
+    }
+  });
+
+  app.post("/api/coze/chat/status", json, async (request, response) => {
+    try {
+      const body = request.body || {};
+      const claims = verifyTicket(body.ticket, config.linkSecret);
+      const poll = verifyAgentPollToken(body.poll, config.linkSecret, claims.upload_id);
+      const result = await coze.getChatResult({
+        chatId: poll.chat_id,
+        conversationId: poll.conversation_id,
+      });
+      if (result.status !== "completed") {
+        response.json({ status: "pending", poll: body.poll });
+        return;
+      }
+      const session = createAgentSession({
+        upload_id: claims.upload_id,
+        conversation_id: poll.conversation_id,
         exp: claims.exp,
       }, config.linkSecret);
-      response.json({ reply: result.reply, session });
+      response.json({ status: "completed", reply: result.reply, session });
     } catch (error) {
-      const code = error.code || error.message || "coze_request_failed";
-      const status = code === "ticket_expired" || code === "agent_session_expired" ? 401
-        : code.startsWith("ticket_") || code.startsWith("agent_session_") || code === "conversation_id_invalid" ? 400
-          : code === "coze_not_configured" ? 503
-            : 502;
-      const message = status === 502 ? "智能体暂时无法回答，请稍后重试" : code;
-      errorResponse(response, status, code, message);
+      cozeErrorResponse(response, error);
     }
   });
 

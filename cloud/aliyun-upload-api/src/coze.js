@@ -150,7 +150,7 @@ function createCozeAdapter(config) {
     return result.payload.data;
   }
 
-  async function chat({ message, conversationId, userId }) {
+  async function startChat({ message, conversationId, userId }) {
     if (!configured) throw createCozeError("coze_not_configured");
     const conversationQuery = conversationId ? `?conversation_id=${encodeURIComponent(conversationId)}` : "";
     const created = await request(`/v3/chat${conversationQuery}`, {
@@ -168,30 +168,52 @@ function createCozeAdapter(config) {
       },
     });
 
-    const deadline = Date.now() + MAX_WAIT_MS;
-    let result = created;
-    while (!FINISHED_STATUSES.has(result.status)) {
-      if (Date.now() >= deadline) throw createCozeError("coze_timeout");
-      await wait(POLL_INTERVAL_MS);
-      result = await request(`/v3/chat/retrieve?conversation_id=${encodeURIComponent(created.conversation_id)}&chat_id=${encodeURIComponent(created.id)}`);
+    return {
+      chatId: created.id,
+      conversationId: created.conversation_id,
+      status: created.status,
+    };
+  }
+
+  async function getChatResult({ chatId, conversationId }) {
+    if (!configured) throw createCozeError("coze_not_configured");
+    const result = await request(`/v3/chat/retrieve?conversation_id=${encodeURIComponent(conversationId)}&chat_id=${encodeURIComponent(chatId)}`);
+
+    if (!FINISHED_STATUSES.has(result.status)) {
+      return { status: result.status || "in_progress" };
     }
 
     if (result.status !== "completed") {
       throw createCozeError("coze_chat_failed", result.last_error?.msg || result.status);
     }
 
-    const messages = await request(`/v3/chat/message/list?conversation_id=${encodeURIComponent(created.conversation_id)}&chat_id=${encodeURIComponent(created.id)}`);
+    const messages = await request(`/v3/chat/message/list?conversation_id=${encodeURIComponent(conversationId)}&chat_id=${encodeURIComponent(chatId)}`);
     const answer = [...messages].reverse().find((item) => item.role === "assistant" && item.type === "answer");
     const reply = String(answer?.content || "").trim();
     if (!reply) throw createCozeError("coze_empty_response");
 
+    return { status: "completed", reply };
+  }
+
+  async function chat({ message, conversationId, userId }) {
+    const created = await startChat({ message, conversationId, userId });
+
+    const deadline = Date.now() + MAX_WAIT_MS;
+    let result = { status: created.status };
+    while (true) {
+      if (Date.now() >= deadline) throw createCozeError("coze_timeout");
+      if (!FINISHED_STATUSES.has(result.status)) await wait(POLL_INTERVAL_MS);
+      result = await getChatResult({ chatId: created.chatId, conversationId: created.conversationId });
+      if (result.status === "completed") break;
+    }
+
     return {
-      conversationId: created.conversation_id,
-      reply,
+      conversationId: created.conversationId,
+      reply: result.reply,
     };
   }
 
-  return { configured, authMode, botId: config.cozeBotId, chat };
+  return { configured, authMode, botId: config.cozeBotId, startChat, getChatResult, chat };
 }
 
 module.exports = { createCozeAdapter, createCozeError, createJwtAssertion };

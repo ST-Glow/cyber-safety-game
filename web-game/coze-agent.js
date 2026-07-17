@@ -7,6 +7,9 @@
     title: "助思智能体",
   };
 
+  const CHAT_POLL_INTERVAL_MS = 1000;
+  const CHAT_POLL_TIMEOUT_MS = 65000;
+
   let initialized = false;
   let sending = false;
   let session = "";
@@ -46,8 +49,24 @@
       ticket_signature_invalid: "当前课堂链接无效，请向教师重新领取。",
       origin_not_allowed: "当前网站地址未获智能体服务授权。",
       coze_message_invalid: "问题需要控制在 800 个字符以内。",
+      coze_timeout: "智能体思考时间较长，请再试一次。",
     };
     return messagesByCode[code] || "智能体暂时无法回答，请稍后再试。";
+  }
+
+  function wait(milliseconds) {
+    return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+  }
+
+  async function postJson(path, body) {
+    const response = await fetch(`${config.apiBaseUrl}${path}`, {
+      method: "POST",
+      credentials: "omit",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const payload = await response.json().catch(() => ({}));
+    return { response, payload };
   }
 
   async function sendMessage(rawMessage) {
@@ -66,19 +85,46 @@
     const pending = addMessage("assistant", "正在思考…", { pending: true });
 
     try {
-      const response = await fetch(`${config.apiBaseUrl}/api/coze/chat`, {
-        method: "POST",
-        credentials: "omit",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticket: config.ticket, message, session: session || undefined }),
+      let { response, payload } = await postJson("/api/coze/chat", {
+        ticket: config.ticket,
+        message,
+        session: session || undefined,
       });
-      const payload = await response.json().catch(() => ({}));
-      pending?.remove();
-      if (!response.ok || !payload.reply) {
+      if (!response.ok) {
+        pending?.remove();
         addMessage("system", errorMessage(payload.code));
         window.dispatchEvent(new CustomEvent("cyber-agent-response", { detail: { ok: false, code: payload.code || "request_failed" } }));
         return;
       }
+
+      const deadline = Date.now() + CHAT_POLL_TIMEOUT_MS;
+      while (!payload.reply) {
+        if (payload.status !== "pending" || !payload.poll) {
+          pending?.remove();
+          addMessage("system", errorMessage(payload.code));
+          window.dispatchEvent(new CustomEvent("cyber-agent-response", { detail: { ok: false, code: payload.code || "request_failed" } }));
+          return;
+        }
+        if (Date.now() >= deadline) {
+          pending?.remove();
+          addMessage("system", errorMessage("coze_timeout"));
+          window.dispatchEvent(new CustomEvent("cyber-agent-response", { detail: { ok: false, code: "coze_timeout" } }));
+          return;
+        }
+        await wait(CHAT_POLL_INTERVAL_MS);
+        ({ response, payload } = await postJson("/api/coze/chat/status", {
+          ticket: config.ticket,
+          poll: payload.poll,
+        }));
+        if (!response.ok) {
+          pending?.remove();
+          addMessage("system", errorMessage(payload.code));
+          window.dispatchEvent(new CustomEvent("cyber-agent-response", { detail: { ok: false, code: payload.code || "request_failed" } }));
+          return;
+        }
+      }
+
+      pending?.remove();
       session = payload.session || session;
       addMessage("assistant", payload.reply);
       window.dispatchEvent(new CustomEvent("cyber-agent-response", { detail: { ok: true } }));

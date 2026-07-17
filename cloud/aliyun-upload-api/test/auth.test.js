@@ -2,7 +2,14 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { createTicket, verifyTicket, createAgentSession, verifyAgentSession } = require("../src/auth");
+const {
+  createTicket,
+  verifyTicket,
+  createAgentSession,
+  verifyAgentSession,
+  createAgentPollToken,
+  verifyAgentPollToken,
+} = require("../src/auth");
 
 const secret = "test-secret-at-least-16-characters";
 const claims = { class_id: "CLASS-5A", student_code: "S001", upload_id: "upload_001", exp: 2000000000 };
@@ -38,4 +45,22 @@ test("binds a Coze conversation session to one upload identity", () => {
     exp: claims.exp,
   });
   assert.throws(() => verifyAgentSession(session, secret, "another_upload", 1900000000), /agent_session_owner_mismatch/);
+});
+
+test("binds a short-lived Coze poll token to one upload identity", () => {
+  const poll = createAgentPollToken({
+    upload_id: claims.upload_id,
+    conversation_id: "7500000000000000001",
+    chat_id: "7500000000000000002",
+    exp: claims.exp,
+  }, secret);
+  assert.deepEqual(verifyAgentPollToken(poll, secret, claims.upload_id, 1900000000), {
+    v: 1,
+    kind: "coze_chat_poll",
+    upload_id: claims.upload_id,
+    conversation_id: "7500000000000000001",
+    chat_id: "7500000000000000002",
+    exp: claims.exp,
+  });
+  assert.throws(() => verifyAgentPollToken(poll, secret, "another_upload", 1900000000), /agent_poll_owner_mismatch/);
 });
