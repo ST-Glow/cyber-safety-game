@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="QuizQuestion" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/quiz_question.gd" id="1_quiz"]
+
+[resource]
+script = ExtResource("1_quiz")
+title = "芯片检查点 2 · AI预测"
+prompt = "人工智能把一张新图片判断为猫，怎样理解更准确？"
+options = PackedStringArray("它根据训练中学到的特征进行预测，仍可能判断错误", "它像人一样真正认识并理解了这只猫", "只要人工智能给出判断，就一定不会出错")
+correct_index = 0
+explanation = "图像分类是在已有数据规律基础上进行预测，不代表真正理解，也不能保证每次都正确。"

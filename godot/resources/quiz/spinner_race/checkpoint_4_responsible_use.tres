@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="QuizQuestion" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/quiz_question.gd" id="1_quiz"]
+
+[resource]
+script = ExtResource("1_quiz")
+title = "检查点 4 · 综合应用"
+prompt = "使用AI完成学习任务，哪套做法最合理？"
+options = PackedStringArray("明确任务和要求，理解AI的回答，并用可靠资料核验", "把题目交给AI后直接提交", "只要AI语气肯定，就不需要再次检查")
+correct_index = 0
+explanation = "合理使用AI需要明确任务、理解生成内容，并对关键信息进行核验，最终判断仍由学习者完成。"

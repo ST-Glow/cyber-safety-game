@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="QuizQuestion" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/quiz_question.gd" id="1_quiz"]
+
+[resource]
+script = ExtResource("1_quiz")
+title = "生存检查点 2 · 人类责任"
+prompt = "当人工智能参与影响同学的重要判断时，哪种做法更合理？"
+options = PackedStringArray("由老师或负责人检查依据，并对最终决定负责", "完全交给人工智能，不需要任何人复核", "只看人工智能回答时的语气是否肯定")
+correct_index = 0
+explanation = "人工智能只能辅助判断；影响人的重要决定需要人类审核证据并承担最终责任。"

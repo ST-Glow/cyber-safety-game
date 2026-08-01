@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="QuizQuestion" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/quiz_question.gd" id="1_quiz"]
+
+[resource]
+script = ExtResource("1_quiz")
+title = "终点挑战 · 生成式AI认知"
+prompt = "关于生成式人工智能，哪种说法更准确？"
+options = PackedStringArray("它根据学习到的数据规律生成内容，答案可能不准确", "它像人一样真正理解所有内容", "它只会复制某一个固定答案")
+correct_index = 0
+explanation = "生成式AI会根据训练中学习到的规律生成内容，但它仍可能出现事实错误或不合适的回答。"
+

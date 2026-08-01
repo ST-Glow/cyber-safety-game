@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="QuizQuestion" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/quiz_question.gd" id="1_quiz"]
+
+[resource]
+script = ExtResource("1_quiz")
+title = "检查点 2 · 有效指令"
+prompt = "想让AI用初一学生能理解的方式解释光合作用，哪条指令更合适？"
+options = PackedStringArray("讲讲光合作用", "请面向初一学生，用三个步骤和一个生活例子解释光合作用，控制在200字内", "越详细越好")
+correct_index = 1
+explanation = "清楚说明对象、任务形式、内容要求和长度限制，可以让AI更准确地理解你的目标。"

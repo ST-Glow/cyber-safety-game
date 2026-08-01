@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/obstacles/rising_gate.gd" id="1_gate"]
+
+[node name="RisingGate" type="AnimatableBody3D"]
+script = ExtResource("1_gate")
+
