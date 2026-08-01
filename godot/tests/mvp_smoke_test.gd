@@ -34,6 +34,32 @@ func _run_test() -> void:
 	var spring_arm := game.get_node_or_null("CameraRig/SpringArm3D") as SpringArm3D
 	_expect(manager != null, "game manager exists")
 	_expect(player != null, "Ranger player exists")
+	var animation_player := player.get("_animation_player") as AnimationPlayer if player else null
+	_expect(animation_player != null, "Ranger animation player exists")
+	if animation_player:
+		var expected_animations := {
+			"Idle": "General/Idle_A",
+			"Cheering": "Simulation/Cheering",
+			"Hit_A": "General/Hit_A",
+			"Dodge_Forward": "MovementAdvanced/Dodge_Forward",
+			"Jump_Start": "MovementBasic/Jump_Start",
+			"Jump_Full_Short": "MovementBasic/Jump_Full_Short",
+			"Jump_Land": "MovementBasic/Jump_Land",
+			"Running_A": "MovementBasic/Running_A",
+		}
+		var missing_animation_targets := 0
+		var animation_root := animation_player.get_node(animation_player.root_node)
+		for token in expected_animations:
+			var resolved: StringName = player.call("_resolve_animation", token)
+			_expect(String(resolved) == String(expected_animations[token]), "%s resolves to the intended KayKit animation" % token)
+			var animation := animation_player.get_animation(resolved)
+			if animation == null:
+				continue
+			for track_index in range(animation.get_track_count()):
+				var target_path := NodePath(animation.track_get_path(track_index).get_concatenated_names())
+				if not target_path.is_empty() and animation_root.get_node_or_null(target_path) == null:
+					missing_animation_targets += 1
+		_expect(missing_animation_targets == 0, "KayKit animation tracks target the Ranger rig")
 	_expect(sweeper != null, "rotating sweeper exists")
 	_expect(spring_arm != null and spring_arm.collision_mask == 1, "camera collides with static course geometry only")
 	_expect(InputMap.has_action("camera_left") and InputMap.has_action("camera_right") and InputMap.has_action("camera_reset"), "main level exposes rotate and recenter camera controls")
@@ -171,11 +197,12 @@ func _finish() -> void:
 	Input.action_release("move_right")
 	Input.action_release("jump")
 	Input.action_release("dash")
+	TEST_CLEANUP.stop_all_audio(root)
 	if is_instance_valid(game_instance):
-		TEST_CLEANUP.stop_all_audio(game_instance)
 		game_instance.queue_free()
 		await process_frame
 		await process_frame
+	await create_timer(0.25, true, false, true).timeout
 	if failures.is_empty():
 		print("MVP_SMOKE_TEST_OK")
 		quit(0)

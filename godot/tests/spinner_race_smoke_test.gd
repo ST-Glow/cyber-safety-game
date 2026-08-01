@@ -238,11 +238,12 @@ func _finish() -> void:
 	paused = false
 	for action in ["move_forward", "move_back", "move_left", "move_right", "jump", "dash", "camera_left", "camera_right", "camera_reset"]:
 		Input.action_release(action)
+	TEST_CLEANUP.stop_all_audio(root)
 	if is_instance_valid(game_instance):
-		TEST_CLEANUP.stop_all_audio(game_instance)
 		game_instance.queue_free()
 		await process_frame
 		await process_frame
+	await create_timer(0.25, true, false, true).timeout
 	if failures.is_empty():
 		print("SPINNER_RACE_SMOKE_TEST_OK")
 		quit(0)

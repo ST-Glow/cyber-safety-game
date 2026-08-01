@@ -15,8 +15,9 @@ func _run_test() -> void:
 	var pusher_scene := load("res://scenes/obstacles/side_pusher.tscn") as PackedScene
 	var gate_scene := load("res://scenes/obstacles/rising_gate.tscn") as PackedScene
 	var sweeper_scene := load("res://scenes/obstacles/rotating_sweeper.tscn") as PackedScene
-	_expect(player_scene != null and pusher_scene != null and gate_scene != null and sweeper_scene != null, "reusable contact scenes load")
-	if player_scene == null or pusher_scene == null or gate_scene == null or sweeper_scene == null:
+	var bridge_scene := load("res://scenes/obstacles/tilt_bridge.tscn") as PackedScene
+	_expect(player_scene != null and pusher_scene != null and gate_scene != null and sweeper_scene != null and bridge_scene != null, "reusable contact scenes load")
+	if player_scene == null or pusher_scene == null or gate_scene == null or sweeper_scene == null or bridge_scene == null:
 		call_deferred("_finish")
 		return
 
@@ -35,6 +36,9 @@ func _run_test() -> void:
 	var sweeper := sweeper_scene.instantiate() as RotatingSweeper
 	sweeper.position.x = 40.0
 	test_root.add_child(sweeper)
+	var bridge := bridge_scene.instantiate() as TiltBridge
+	bridge.position.x = 60.0
+	test_root.add_child(bridge)
 	await process_frame
 	await physics_frame
 
@@ -48,6 +52,14 @@ func _run_test() -> void:
 	_expect(pusher.find_children("WarningBand_*", "MeshInstance3D", false, false).size() == 4, "pusher has pulsing safety bands")
 	_expect(sweeper.get_node_or_null("DangerZone") != null, "sweeper shows its full ground danger radius")
 	_expect(sweeper.find_children("WarningBeacon*", "MeshInstance3D", false, false).size() == 8, "sweeper danger boundary has warning beacons")
+	var bridge_start_rotation := bridge.rotation.z
+	await _wait_physics_frames(3)
+	_expect(not is_equal_approx(bridge.rotation.z, bridge_start_rotation), "tilt bridge advances on its fixed cycle")
+	bridge.set_physics_process(false)
+	bridge.reset_phase()
+	await physics_frame
+	_expect(is_equal_approx(bridge.rotation.z, sin(bridge.initial_phase) * bridge.tilt_radians), "tilt bridge resets to its configured phase")
+	_expect(bridge.find_children("*", "CollisionShape3D", false, false).size() == 1, "tilt bridge exposes solid collision")
 
 	player.global_position = pusher.global_position
 	player.velocity = Vector3.ZERO

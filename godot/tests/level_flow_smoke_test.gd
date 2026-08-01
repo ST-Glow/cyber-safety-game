@@ -114,12 +114,12 @@ func _run_test() -> void:
 		var reset_summary: Dictionary = campaign.call("get_campaign_summary") if campaign else {}
 		_expect(int(reset_summary.get("completed_levels", -1)) == 0, "restart-all clears campaign results")
 
+	TEST_CLEANUP.stop_all_audio(root)
+	await create_timer(0.25, true, false, true).timeout
 	if failures.is_empty():
-		TEST_CLEANUP.stop_all_audio(root)
 		print("LEVEL_FLOW_SMOKE_TEST_OK")
 		quit(0)
 	else:
-		TEST_CLEANUP.stop_all_audio(root)
 		print("LEVEL_FLOW_SMOKE_TEST_FAILED: %s" % ", ".join(failures))
 		quit(1)
 

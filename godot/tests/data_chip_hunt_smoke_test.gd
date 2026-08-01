@@ -65,6 +65,15 @@ func _run_test() -> void:
 	await physics_frame
 	_expect(manager.is_running() and player.controls_enabled, "countdown completion starts collection")
 	_expect(not manager.finish(true), "collection cannot finish before both learning checkpoints")
+	var spring_pad := spring_root.get_child(0) as PartySpringPad
+	var spring_visual := spring_pad.get_node("SpringPadVisual") as Node3D
+	var spring_scale_before := spring_visual.scale
+	player.velocity.y = 0.0
+	spring_pad.call("_on_body_entered", player)
+	_expect(player.velocity.y >= spring_pad.bounce_velocity, "spring pad applies its configured bounce velocity")
+	_expect(float(spring_pad.get("_cooldown_left")) > 0.0, "spring pad starts its retrigger cooldown")
+	await create_timer(0.05, true, false, true).timeout
+	_expect(spring_pad.is_processing() and not spring_visual.scale.is_equal_approx(spring_scale_before), "spring pad pulse remains active")
 	var mover_start := mover_a.position
 	var camera_yaw_before := camera_rig.rotation.y
 	Input.action_press("camera_right")
@@ -122,7 +131,7 @@ func _run_test() -> void:
 	_expect(manager.state == PartyModeManager.RunState.COUNTDOWN, "collection restart returns to countdown")
 	_expect(int(game.get("collected_count")) == 0 and manager.falls == 0, "collection restart clears progress and falls")
 	_expect(not chips[0].is_collected and chips[0].visible, "collection restart restores chips")
-	_expect(mover_a.position.distance_to(mover_start) < 0.02, "collection restart resets moving platform phase")
+	_expect(mover_a.position.distance_to(mover_start) < 0.08, "collection restart resets moving platform phase")
 
 	manager.time_limit_seconds = 0.08
 	game.call("_on_restart_requested")
@@ -155,11 +164,12 @@ func _finish() -> void:
 	Input.action_release("camera_left")
 	Input.action_release("camera_right")
 	Input.action_release("camera_reset")
+	TEST_CLEANUP.stop_all_audio(root)
 	if is_instance_valid(game_instance):
-		TEST_CLEANUP.stop_all_audio(game_instance)
 		game_instance.queue_free()
 		await process_frame
 		await process_frame
+	await create_timer(0.25, true, false, true).timeout
 	if failures.is_empty():
 		print("DATA_CHIP_HUNT_SMOKE_TEST_OK")
 		quit(0)

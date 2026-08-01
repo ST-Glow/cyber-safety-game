@@ -194,11 +194,12 @@ func _on_run_finished(result: Dictionary) -> void:
 
 func _finish() -> void:
 	paused = false
+	TEST_CLEANUP.stop_all_audio(root)
 	if is_instance_valid(game_instance):
-		TEST_CLEANUP.stop_all_audio(game_instance)
 		game_instance.queue_free()
 		await process_frame
 		await process_frame
+	await create_timer(0.25, true, false, true).timeout
 	if failures.is_empty():
 		print("SIGNAL_BOMB_SURVIVAL_SMOKE_TEST_OK")
 		quit(0)
