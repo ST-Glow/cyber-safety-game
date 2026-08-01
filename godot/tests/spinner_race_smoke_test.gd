@@ -130,6 +130,7 @@ func _run_test() -> void:
 	_expect(not paused and player.controls_enabled, "correct answer resumes physics and movement")
 	_expect(manager.checkpoint_index == 1, "correct answer updates checkpoint index")
 	_expect(checkpoint.is_activated, "correct answer activates checkpoint")
+	_expect(not checkpoint.is_processing(), "activated checkpoint stops pulse processing")
 	_expect(manager.quiz_attempts_by_checkpoint[0] == 2, "correct retry records both attempts")
 	var checkpoint_spawn := manager.checkpoint_transform.origin
 	var time_before_fall := manager.elapsed_seconds
@@ -191,6 +192,7 @@ func _run_test() -> void:
 	_expect(manager.falls == 0 and manager.obstacle_hits == 0 and manager.checkpoint_index == 0, "restart clears falls, hits and checkpoint")
 	_expect(manager.quiz_attempts_by_checkpoint == [0, 0, 0, 0], "restart clears checkpoint quiz attempts")
 	_expect(not checkpoint.is_activated, "restart resets checkpoint visuals and state")
+	_expect(checkpoint.is_processing(), "restart resumes checkpoint pulse processing")
 	_expect(mover_a.position.distance_to(mover_start) < 0.01, "restart resets moving platform phase")
 	_expect(is_equal_approx(spinner.rotation.y, spinner.initial_phase), "restart resets spinner phase")
 	_expect(not bool(game.get("finish_triggered")), "restart resets one-shot finish guard")

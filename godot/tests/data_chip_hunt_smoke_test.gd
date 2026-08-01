@@ -94,6 +94,7 @@ func _run_test() -> void:
 	for index in range(6):
 		_expect(chips[index].collect(), "chip %d collects once" % (index + 1))
 	_expect(int(game.get("collected_count")) == 6, "six unique chips update collection progress")
+	_expect(not chips[0].is_processing(), "collected chips stop idle animation processing")
 	_expect(manager.state == PartyModeManager.RunState.QUIZ and paused, "sixth chip opens and pauses first quiz")
 	_expect(not chips[0].collect(), "collected chip cannot score twice")
 	var paused_time := manager.elapsed_seconds
@@ -131,6 +132,7 @@ func _run_test() -> void:
 	_expect(manager.state == PartyModeManager.RunState.COUNTDOWN, "collection restart returns to countdown")
 	_expect(int(game.get("collected_count")) == 0 and manager.falls == 0, "collection restart clears progress and falls")
 	_expect(not chips[0].is_collected and chips[0].visible, "collection restart restores chips")
+	_expect(chips[0].is_processing(), "collection restart resumes chip animation processing")
 	_expect(mover_a.position.distance_to(mover_start) < 0.08, "collection restart resets moving platform phase")
 
 	manager.time_limit_seconds = 0.08

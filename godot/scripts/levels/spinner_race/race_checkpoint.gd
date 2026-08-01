@@ -42,6 +42,7 @@ func get_spawn_transform() -> Transform3D:
 
 func set_activated() -> void:
 	is_activated = true
+	set_process(false)
 	_set_lamp_color(Color("62f5b4"), 2.0)
 	_set_floor_color(Color("62f5b4"), 0.7)
 	if _activation_audio:
@@ -50,6 +51,7 @@ func set_activated() -> void:
 
 func reset_checkpoint() -> void:
 	is_activated = false
+	set_process(true)
 	_elapsed = 0.0
 	_set_lamp_color(Color("ffe06a"), 1.2)
 	_set_floor_color(Color("ffe06a"), 0.7)

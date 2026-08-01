@@ -44,6 +44,7 @@ func collect() -> bool:
 	if is_collected:
 		return false
 	is_collected = true
+	set_process(false)
 	monitoring = false
 	_collision.set_deferred("disabled", true)
 	_visual_root.visible = false
@@ -56,6 +57,7 @@ func collect() -> bool:
 
 func reset_chip() -> void:
 	is_collected = false
+	set_process(true)
 	_time = 0.0
 	position.y = _base_y
 	_visual_root.rotation = Vector3.ZERO
