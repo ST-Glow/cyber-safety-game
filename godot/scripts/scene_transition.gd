@@ -8,13 +8,6 @@ const TRANSITION_SOUND: AudioStream = preload("res://assets/audio/kenney_ui_pack
 const ARRIVAL_SOUND: AudioStream = preload("res://assets/audio/interface_sfx_pack_1/confirm_tones/style6/confirm_style_6_002.ogg")
 const MILESTONE_SOUND: AudioStream = preload("res://assets/audio/interface_sfx_pack_1/confirm_tones/style6/confirm_style_6_001.ogg")
 
-const SCENE_LABELS := {
-	"res://scenes/main.tscn": ["第 1 关", "AI认知训练区", "跑、跳、冲刺，完成基础训练"],
-	"res://scenes/levels/spinner_race/spinner_race.tscn": ["第 2 关", "旋转障碍冲刺", "通过检查点，跨越固定周期机关"],
-	"res://scenes/levels/data_chip_hunt/data_chip_hunt.tscn": ["第 3 关", "AI芯片收集赛", "探索三条路线，收集全部12枚芯片"],
-	"res://scenes/levels/signal_bomb_survival/signal_bomb_survival.tscn": ["最终关", "信号炸弹生存赛", "观察预警，在固定波次中坚持60秒"],
-}
-
 var transition_overlay: ColorRect
 var transition_kicker: Label
 var transition_title: Label
@@ -143,10 +136,10 @@ func _swap_scene(scene_path: String) -> void:
 
 
 func _set_transition_copy(scene_path: String, override_title: String, kicker_text: String) -> void:
-	var copy: Array = SCENE_LABELS.get(scene_path, ["新挑战", "AI训练场", "准备进入下一项训练"])
-	transition_kicker.text = kicker_text if not kicker_text.is_empty() else String(copy[0])
-	transition_title.text = override_title if not override_title.is_empty() else String(copy[1])
-	transition_detail.text = String(copy[2])
+	var level := CampaignSession.get_level_by_scene_path(scene_path)
+	transition_kicker.text = kicker_text if not kicker_text.is_empty() else String(level.get("kicker", "新挑战"))
+	transition_title.text = override_title if not override_title.is_empty() else String(level.get("title", "AI训练场"))
+	transition_detail.text = String(level.get("detail", "准备进入下一项训练"))
 
 
 func _build_overlay() -> void:

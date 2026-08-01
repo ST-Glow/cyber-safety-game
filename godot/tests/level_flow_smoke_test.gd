@@ -18,6 +18,23 @@ func _run_test() -> void:
 		_expect(scene_transition.has_method("request_scene_change"), "transition exposes scene-change API")
 		_expect(scene_transition.has_method("show_milestone"), "transition exposes milestone feedback API")
 	if campaign:
+		_expect(bool(campaign.call("validate_level_registry")), "campaign level registry validates at startup")
+		var levels: Array = campaign.call("get_levels_in_menu_order")
+		_expect(levels.size() == 4, "campaign registry enumerates exactly four levels")
+		var expected_ids := ["ai_training_ground", "spinner_race", "data_chip_hunt", "signal_bomb_survival"]
+		for index in range(levels.size()):
+			var level: Dictionary = levels[index]
+			_expect(String(level.get("id", "")) == expected_ids[index], "campaign registry preserves level menu order %d" % (index + 1))
+			for field in ["id", "scene_path", "kicker", "title", "detail", "menu_order", "final_level"]:
+				_expect(level.has(field), "campaign level %d contains %s metadata" % [index + 1, field])
+		var spinner_metadata: Dictionary = campaign.call("get_level_by_scene_path", "res://scenes/levels/spinner_race/spinner_race.tscn")
+		_expect(String(spinner_metadata.get("id", "")) == "spinner_race", "campaign registry supports scene-path lookup")
+		var final_metadata: Dictionary = campaign.call("get_level_by_id", "signal_bomb_survival")
+		_expect(bool(final_metadata.get("final_level", false)), "campaign registry identifies the final level")
+		if scene_transition:
+			scene_transition.call("_set_transition_copy", String(spinner_metadata.get("scene_path", "")), "", "")
+			var transition_title := scene_transition.get("transition_title") as Label
+			_expect(transition_title != null and transition_title.text == String(spinner_metadata.get("title", "")), "scene transition reads copy from campaign metadata")
 		campaign.call("reset_campaign")
 	var main_scene := load("res://scenes/main.tscn") as PackedScene
 	_expect(main_scene != null, "main scene loads")

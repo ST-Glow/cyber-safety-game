@@ -6,30 +6,109 @@ signal level_result_recorded(level_id: String, result: Dictionary)
 signal campaign_reset
 
 const FIRST_LEVEL_ID := "ai_training_ground"
-const LEVEL_ORDER: Array[String] = [
-	"ai_training_ground",
-	"spinner_race",
-	"data_chip_hunt",
-	"signal_bomb_survival",
+const LEVELS: Array[Dictionary] = [
+	{
+		"id": "ai_training_ground",
+		"scene_path": "res://scenes/main.tscn",
+		"kicker": "第 1 关",
+		"title": "AI认知训练区",
+		"detail": "跑、跳、冲刺，完成基础训练",
+		"menu_order": 1,
+		"final_level": false,
+	},
+	{
+		"id": "spinner_race",
+		"scene_path": "res://scenes/levels/spinner_race/spinner_race.tscn",
+		"kicker": "第 2 关",
+		"title": "旋转障碍冲刺",
+		"detail": "通过检查点，跨越固定周期机关",
+		"menu_order": 2,
+		"final_level": false,
+	},
+	{
+		"id": "data_chip_hunt",
+		"scene_path": "res://scenes/levels/data_chip_hunt/data_chip_hunt.tscn",
+		"kicker": "第 3 关",
+		"title": "AI芯片收集赛",
+		"detail": "探索三条路线，收集全部 12 枚芯片",
+		"menu_order": 3,
+		"final_level": false,
+	},
+	{
+		"id": "signal_bomb_survival",
+		"scene_path": "res://scenes/levels/signal_bomb_survival/signal_bomb_survival.tscn",
+		"kicker": "最终关",
+		"title": "信号炸弹生存赛",
+		"detail": "观察预警，在固定波次中坚持 60 秒",
+		"menu_order": 4,
+		"final_level": true,
+	},
 ]
-const LEVEL_SCENES := {
-	"ai_training_ground": "res://scenes/main.tscn",
-	"spinner_race": "res://scenes/levels/spinner_race/spinner_race.tscn",
-	"data_chip_hunt": "res://scenes/levels/data_chip_hunt/data_chip_hunt.tscn",
-	"signal_bomb_survival": "res://scenes/levels/signal_bomb_survival/signal_bomb_survival.tscn",
-}
-const LEVEL_TITLES := {
-	"ai_training_ground": "AI认知训练区",
-	"spinner_race": "旋转障碍冲刺",
-	"data_chip_hunt": "AI芯片收集赛",
-	"signal_bomb_survival": "信号炸弹生存赛",
-}
 
 var level_results: Dictionary = {}
 
 
+func _ready() -> void:
+	if not validate_level_registry():
+		push_error("Campaign level registry validation failed")
+
+
+func get_level_by_id(level_id: String) -> Dictionary:
+	for level in LEVELS:
+		if String(level.get("id", "")) == level_id:
+			return level.duplicate(true)
+	return {}
+
+
+func get_level_by_scene_path(scene_path: String) -> Dictionary:
+	for level in LEVELS:
+		if String(level.get("scene_path", "")) == scene_path:
+			return level.duplicate(true)
+	return {}
+
+
+func get_levels_in_menu_order() -> Array[Dictionary]:
+	var ordered_levels: Array[Dictionary] = []
+	for level in LEVELS:
+		ordered_levels.append(level.duplicate(true))
+	ordered_levels.sort_custom(func(left: Dictionary, right: Dictionary) -> bool:
+		return int(left.get("menu_order", 0)) < int(right.get("menu_order", 0))
+	)
+	return ordered_levels
+
+
+func validate_level_registry() -> bool:
+	var valid := true
+	var ids: Dictionary = {}
+	var scene_paths: Dictionary = {}
+	var menu_orders: Dictionary = {}
+	var final_count := 0
+	for level in LEVELS:
+		var level_id := String(level.get("id", ""))
+		var scene_path := String(level.get("scene_path", ""))
+		var menu_order := int(level.get("menu_order", 0))
+		if level_id.is_empty() or scene_path.is_empty() or menu_order <= 0:
+			push_error("Campaign level metadata is incomplete: %s" % level)
+			valid = false
+		if ids.has(level_id) or scene_paths.has(scene_path) or menu_orders.has(menu_order):
+			push_error("Campaign level metadata must use unique ids, paths, and menu order: %s" % level_id)
+			valid = false
+		ids[level_id] = true
+		scene_paths[scene_path] = true
+		menu_orders[menu_order] = true
+		if not ResourceLoader.exists(scene_path, "PackedScene"):
+			push_error("Campaign level scene does not exist: %s" % scene_path)
+			valid = false
+		if bool(level.get("final_level", false)):
+			final_count += 1
+	if final_count != 1:
+		push_error("Campaign level metadata must identify exactly one final level")
+		valid = false
+	return valid
+
+
 func record_level_result(level_id: String, result: Dictionary) -> void:
-	if not LEVEL_ORDER.has(level_id):
+	if get_level_by_id(level_id).is_empty():
 		push_warning("Unknown campaign level id: %s" % level_id)
 	var stored_result := result.duplicate(true)
 	stored_result["level_id"] = level_id
@@ -39,14 +118,20 @@ func record_level_result(level_id: String, result: Dictionary) -> void:
 
 
 func load_next_level(current_level_id: String) -> Error:
-	var current_index := LEVEL_ORDER.find(current_level_id)
-	if current_index < 0 or current_index >= LEVEL_ORDER.size() - 1:
+	var ordered_levels := get_levels_in_menu_order()
+	var current_index := -1
+	for index in range(ordered_levels.size()):
+		if String(ordered_levels[index].get("id", "")) == current_level_id:
+			current_index = index
+			break
+	if current_index < 0 or current_index >= ordered_levels.size() - 1:
 		return ERR_DOES_NOT_EXIST
-	return load_level(LEVEL_ORDER[current_index + 1])
+	return load_level(String(ordered_levels[current_index + 1].get("id", "")))
 
 
 func load_level(level_id: String) -> Error:
-	var scene_path := String(LEVEL_SCENES.get(level_id, ""))
+	var level := get_level_by_id(level_id)
+	var scene_path := String(level.get("scene_path", ""))
 	if scene_path.is_empty():
 		return ERR_DOES_NOT_EXIST
 	get_tree().paused = false
@@ -55,7 +140,7 @@ func load_level(level_id: String) -> Error:
 		return int(transition.call(
 			"request_scene_change",
 			scene_path,
-			String(LEVEL_TITLES.get(level_id, "AI训练场"))
+			String(level.get("title", "AI训练场"))
 		))
 	return get_tree().change_scene_to_file(scene_path)
 
@@ -73,13 +158,15 @@ func restart_campaign() -> Error:
 
 
 func get_campaign_summary() -> Dictionary:
+	var ordered_levels := get_levels_in_menu_order()
 	var ordered_results: Array[Dictionary] = []
 	var total_elapsed := 0.0
 	var total_falls := 0
 	var total_quiz_attempts := 0
 	var total_normalized_score := 0.0
 	var successful_levels := 0
-	for level_id in LEVEL_ORDER:
+	for level in ordered_levels:
+		var level_id := String(level.get("id", ""))
 		if not level_results.has(level_id):
 			continue
 		var result: Dictionary = level_results[level_id]
@@ -95,7 +182,7 @@ func get_campaign_summary() -> Dictionary:
 		average_score = int(round(total_normalized_score / float(ordered_results.size())))
 	return {
 		"completed_levels": ordered_results.size(),
-		"total_levels": LEVEL_ORDER.size(),
+		"total_levels": ordered_levels.size(),
 		"successful_levels": successful_levels,
 		"total_elapsed_seconds": snappedf(total_elapsed, 0.01),
 		"total_falls": total_falls,
