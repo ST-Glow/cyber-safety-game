@@ -1,6 +1,7 @@
 extends SceneTree
 
 const TEST_CLEANUP := preload("res://tests/test_cleanup.gd")
+const INPUT_DEFAULTS := preload("res://scripts/input_defaults.gd")
 
 var failures: Array[String] = []
 var jump_event_count: int = 0
@@ -15,6 +16,25 @@ func _initialize() -> void:
 
 
 func _run_test() -> void:
+	var expected_input_keys := {
+		&"move_forward": [KEY_W, KEY_UP],
+		&"move_back": [KEY_S, KEY_DOWN],
+		&"move_left": [KEY_A, KEY_LEFT],
+		&"move_right": [KEY_D, KEY_RIGHT],
+		&"jump": [KEY_SPACE],
+		&"dash": [KEY_SHIFT],
+		&"camera_left": [KEY_Q],
+		&"camera_right": [KEY_E],
+		&"camera_reset": [KEY_R],
+	}
+	for action_name: StringName in expected_input_keys:
+		_expect(InputMap.has_action(action_name), "%s is defined by project input settings" % action_name)
+		for keycode: Key in expected_input_keys[action_name]:
+			_expect(_action_has_physical_key(action_name, keycode), "%s includes physical key %d" % [action_name, keycode])
+	InputMap.erase_action(&"camera_reset")
+	INPUT_DEFAULTS.ensure_actions()
+	_expect(_action_has_physical_key(&"camera_reset", KEY_R), "central runtime input fallback restores a missing action")
+
 	var main_scene := load("res://scenes/main.tscn") as PackedScene
 	_expect(main_scene != null, "main scene loads")
 	if main_scene == null:
@@ -168,6 +188,13 @@ func _run_test() -> void:
 func _wait_physics_frames(frame_count: int) -> void:
 	for _frame in range(frame_count):
 		await physics_frame
+
+
+func _action_has_physical_key(action_name: StringName, keycode: Key) -> bool:
+	for event in InputMap.action_get_events(action_name):
+		if event is InputEventKey and event.physical_keycode == keycode:
+			return true
+	return false
 
 
 func _expect(condition: bool, label: String) -> void:

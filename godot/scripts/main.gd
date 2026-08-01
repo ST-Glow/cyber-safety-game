@@ -6,6 +6,7 @@ const SWEEPER_SCENE := preload("res://scenes/obstacles/rotating_sweeper.tscn")
 const GATE_SCENE := preload("res://scenes/obstacles/rising_gate.tscn")
 const BRIDGE_SCENE := preload("res://scenes/obstacles/tilt_bridge.tscn")
 const UI_SCRIPT := preload("res://scripts/game_ui.gd")
+const INPUT_DEFAULTS := preload("res://scripts/input_defaults.gd")
 const QUIZ_RESOURCE := preload("res://resources/quiz/generative_ai.tres")
 const BLUE_PLATFORM := preload("res://assets/environments/platformer/kaykit_platformer_pack/models/blue/platform_6x6x1_blue.gltf")
 const RED_PLATFORM := preload("res://assets/environments/platformer/kaykit_platformer_pack/models/red/platform_6x6x1_red.gltf")
@@ -26,7 +27,7 @@ const COURSE_FINISH_Z := -59.0
 
 var game_manager: GameManager
 var player: PlayerController
-var ui: CanvasLayer
+var ui: GameUI
 var camera_rig: Node3D
 var spring_arm: SpringArm3D
 var camera_node: Camera3D
@@ -42,7 +43,7 @@ const CAMERA_MOUSE_SENSITIVITY := 0.0045
 
 
 func _ready() -> void:
-	_ensure_input_actions()
+	INPUT_DEFAULTS.ensure_actions()
 	game_manager = GAME_MANAGER_SCRIPT.new()
 	game_manager.name = "GameManager"
 	add_child(game_manager)
@@ -56,7 +57,7 @@ func _ready() -> void:
 	_connect_game_signals()
 	_reset_level()
 	game_manager.prepare_run()
-	ui.call("show_ready")
+	ui.show_ready()
 
 
 func _process(delta: float) -> void:
@@ -64,8 +65,7 @@ func _process(delta: float) -> void:
 		return
 	_update_camera(delta)
 	var progress := clampf((COURSE_START_Z - player.global_position.z) / (COURSE_START_Z - COURSE_FINISH_Z), 0.0, 1.0)
-	ui.call(
-		"update_hud",
+	ui.update_hud(
 		progress,
 		game_manager.elapsed_seconds,
 		game_manager.score,
@@ -292,14 +292,14 @@ func _build_finish_trigger() -> void:
 
 
 func _build_ui() -> void:
-	ui = UI_SCRIPT.new() as CanvasLayer
+	ui = UI_SCRIPT.new() as GameUI
 	ui.name = "GameUI"
 	add_child(ui)
-	ui.connect("start_requested", _on_start_requested)
-	ui.connect("restart_requested", _on_restart_requested)
-	ui.connect("next_level_requested", _on_next_level_requested)
-	ui.connect("quiz_choice_selected", _on_quiz_choice_selected)
-	ui.connect("assistant_toggled", _on_assistant_toggled)
+	ui.start_requested.connect(_on_start_requested)
+	ui.restart_requested.connect(_on_restart_requested)
+	ui.next_level_requested.connect(_on_next_level_requested)
+	ui.quiz_choice_selected.connect(_on_quiz_choice_selected)
+	ui.assistant_toggled.connect(_on_assistant_toggled)
 
 
 func _connect_game_signals() -> void:
@@ -308,7 +308,7 @@ func _connect_game_signals() -> void:
 
 func _on_start_requested() -> void:
 	_reset_level()
-	ui.call("show_running")
+	ui.show_running()
 	game_manager.start_run()
 	player.set_controls_enabled(true)
 
@@ -316,7 +316,7 @@ func _on_start_requested() -> void:
 func _on_restart_requested() -> void:
 	game_manager.restart_to_ready()
 	_reset_level()
-	ui.call("show_running")
+	ui.show_running()
 	game_manager.start_run()
 	player.set_controls_enabled(true)
 
@@ -367,19 +367,19 @@ func _on_finish_body_entered(body: Node3D) -> void:
 	if game_manager.open_quiz():
 		finish_triggered = true
 		player.set_controls_enabled(false)
-		ui.call("show_quiz", QUIZ_RESOURCE)
+		ui.show_quiz(QUIZ_RESOURCE)
 
 
 func _on_quiz_choice_selected(selected_index: int) -> void:
 	var correct := game_manager.submit_quiz_answer(selected_index, QUIZ_RESOURCE.correct_index)
 	if not correct:
-		ui.call("show_wrong_answer", selected_index, QUIZ_RESOURCE.explanation)
+		ui.show_wrong_answer(selected_index, QUIZ_RESOURCE.explanation)
 
 
 func _on_run_completed(result: Dictionary) -> void:
 	CampaignSession.record_level_result("ai_training_ground", result)
 	player.play_celebration()
-	ui.call("show_result", result)
+	ui.show_result(result)
 
 
 func _reset_level() -> void:
@@ -498,25 +498,3 @@ func _make_material(color: Color, emission_strength: float = 0.0, roughness: flo
 		material.emission = color
 		material.emission_energy_multiplier = emission_strength
 	return material
-
-
-func _ensure_input_actions() -> void:
-	_add_key_action("move_forward", [KEY_W, KEY_UP])
-	_add_key_action("move_back", [KEY_S, KEY_DOWN])
-	_add_key_action("move_left", [KEY_A, KEY_LEFT])
-	_add_key_action("move_right", [KEY_D, KEY_RIGHT])
-	_add_key_action("jump", [KEY_SPACE])
-	_add_key_action("dash", [KEY_SHIFT])
-	_add_key_action("camera_left", [KEY_Q])
-	_add_key_action("camera_right", [KEY_E])
-	_add_key_action("camera_reset", [KEY_R])
-
-
-func _add_key_action(action_name: StringName, keycodes: Array) -> void:
-	if not InputMap.has_action(action_name):
-		InputMap.add_action(action_name, 0.2)
-	for keycode in keycodes:
-		var input_event := InputEventKey.new()
-		input_event.physical_keycode = keycode
-		if not InputMap.action_has_event(action_name, input_event):
-			InputMap.action_add_event(action_name, input_event)

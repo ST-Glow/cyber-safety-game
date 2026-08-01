@@ -1,6 +1,7 @@
 extends Node3D
 
 const EXPERIMENT_EVENTS := preload("res://scripts/experiment_event_bridge.gd")
+const INPUT_DEFAULTS := preload("res://scripts/input_defaults.gd")
 
 const RACE_MANAGER_SCRIPT := preload("res://scripts/levels/spinner_race/spinner_race_manager.gd")
 const RACE_UI_SCRIPT := preload("res://scripts/levels/spinner_race/spinner_race_ui.gd")
@@ -61,7 +62,7 @@ func _ready() -> void:
 	# owns its countdown, so always start from an active tree even when opened via
 	# a scene transition instead of directly with F6.
 	get_tree().paused = false
-	_ensure_input_actions()
+	INPUT_DEFAULTS.ensure_actions()
 	_build_manager()
 	_build_world()
 	_build_track()
@@ -686,25 +687,3 @@ func _make_material(color: Color, emission_strength: float = 0.0, roughness: flo
 		material.emission = color
 		material.emission_energy_multiplier = emission_strength
 	return material
-
-
-func _ensure_input_actions() -> void:
-	_add_key_action("move_forward", [KEY_W, KEY_UP])
-	_add_key_action("move_back", [KEY_S, KEY_DOWN])
-	_add_key_action("move_left", [KEY_A, KEY_LEFT])
-	_add_key_action("move_right", [KEY_D, KEY_RIGHT])
-	_add_key_action("jump", [KEY_SPACE])
-	_add_key_action("dash", [KEY_SHIFT])
-	_add_key_action("camera_left", [KEY_Q])
-	_add_key_action("camera_right", [KEY_E])
-	_add_key_action("camera_reset", [KEY_R])
-
-
-func _add_key_action(action_name: StringName, keycodes: Array) -> void:
-	if not InputMap.has_action(action_name):
-		InputMap.add_action(action_name, 0.2)
-	for keycode in keycodes:
-		var input_event := InputEventKey.new()
-		input_event.physical_keycode = keycode
-		if not InputMap.action_has_event(action_name, input_event):
-			InputMap.action_add_event(action_name, input_event)
