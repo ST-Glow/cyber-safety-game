@@ -39,6 +39,12 @@ var confirm_audio: AudioStreamPlayer
 var error_audio: AudioStreamPlayer
 var _quiz_accepts_input: bool = false
 var _last_countdown_sound: int = -1
+var _last_hud_seconds: int = -1
+var _last_hud_falls: int = -1
+var _last_hud_checkpoint: int = -1
+var _last_hud_progress: int = -1
+var _last_hud_state: int = -1
+var _last_hud_countdown_second: int = -1
 
 
 func _ready() -> void:
@@ -70,6 +76,12 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func reset_view() -> void:
+	_last_hud_seconds = -1
+	_last_hud_falls = -1
+	_last_hud_checkpoint = -1
+	_last_hud_progress = -1
+	_last_hud_state = -1
+	_last_hud_countdown_second = -1
 	result_overlay.visible = false
 	quiz_overlay.visible = false
 	_quiz_accepts_input = false
@@ -103,29 +115,44 @@ func update_race(
 	progress: float
 ) -> void:
 	var seconds := maxi(0, ceili(time_left))
-	time_label.text = "剩余时间  %02d:%02d" % [seconds / 60, seconds % 60]
-	fall_label.text = "掉落  %d" % fall_count
-	checkpoint_label.text = "检查点  %d / 4" % checkpoint_index
-	progress_bar.value = clampf(progress * 100.0, 0.0, 100.0)
+	if seconds != _last_hud_seconds:
+		_last_hud_seconds = seconds
+		time_label.text = "剩余时间  %02d:%02d" % [seconds / 60, seconds % 60]
+	if fall_count != _last_hud_falls:
+		_last_hud_falls = fall_count
+		fall_label.text = "掉落  %d" % fall_count
+	if checkpoint_index != _last_hud_checkpoint:
+		_last_hud_checkpoint = checkpoint_index
+		checkpoint_label.text = "检查点  %d / 4" % checkpoint_index
+	var progress_percent := clampi(int(round(progress * 100.0)), 0, 100)
+	if progress_percent != _last_hud_progress:
+		_last_hud_progress = progress_percent
+		progress_bar.value = progress_percent
 
-	match race_state:
-		SpinnerRaceManager.RaceState.COUNTDOWN:
-			state_label.text = "等待出发"
-			countdown_panel.visible = true
-			countdown_label.text = str(maxi(1, ceili(countdown_left)))
-			countdown_hint.text = "倒计时结束后才能移动"
-		SpinnerRaceManager.RaceState.RUNNING:
-			state_label.text = "竞速中"
-			countdown_panel.visible = false
-		SpinnerRaceManager.RaceState.QUIZ:
-			state_label.text = "答题暂停"
-			countdown_panel.visible = false
-		SpinnerRaceManager.RaceState.FINISHED:
-			state_label.text = "已完成"
-			countdown_panel.visible = false
-		SpinnerRaceManager.RaceState.FAILED:
-			state_label.text = "挑战结束"
-			countdown_panel.visible = false
+	if race_state != _last_hud_state:
+		_last_hud_state = race_state
+		match race_state:
+			SpinnerRaceManager.RaceState.COUNTDOWN:
+				state_label.text = "等待出发"
+				countdown_panel.visible = true
+				countdown_hint.text = "倒计时结束后才能移动"
+			SpinnerRaceManager.RaceState.RUNNING:
+				state_label.text = "竞速中"
+				countdown_panel.visible = false
+			SpinnerRaceManager.RaceState.QUIZ:
+				state_label.text = "答题暂停"
+				countdown_panel.visible = false
+			SpinnerRaceManager.RaceState.FINISHED:
+				state_label.text = "已完成"
+				countdown_panel.visible = false
+			SpinnerRaceManager.RaceState.FAILED:
+				state_label.text = "挑战结束"
+				countdown_panel.visible = false
+	if race_state == SpinnerRaceManager.RaceState.COUNTDOWN:
+		var countdown_second := maxi(1, ceili(countdown_left))
+		if countdown_second != _last_hud_countdown_second:
+			_last_hud_countdown_second = countdown_second
+			countdown_label.text = str(countdown_second)
 
 
 func show_result(result: Dictionary) -> void:

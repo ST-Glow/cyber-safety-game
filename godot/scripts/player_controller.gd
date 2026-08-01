@@ -48,6 +48,7 @@ var _land_audio: AudioStreamPlayer3D
 var _dash_audio: AudioStreamPlayer3D
 var _hit_audio: AudioStreamPlayer3D
 var _visual_feedback_scale := Vector3.ONE
+var _animation_token_cache: Dictionary[StringName, StringName] = {}
 
 
 func _ready() -> void:
@@ -77,8 +78,9 @@ func _physics_process(delta: float) -> void:
 		_fall_reported = true
 		fell.emit()
 
-	_update_animation()
-	_update_visual_feedback(delta)
+	var planar_speed := Vector2(velocity.x, velocity.z).length()
+	_update_animation(planar_speed)
+	_update_visual_feedback(delta, planar_speed)
 
 
 func configure_camera(value: Camera3D) -> void:
@@ -340,6 +342,7 @@ func _play_audio(player: AudioStreamPlayer3D) -> void:
 
 
 func _copy_animation_set(source_scene: PackedScene, library_name: String) -> void:
+	_animation_token_cache.clear()
 	if source_scene == null:
 		push_warning("Animation library could not be loaded: %s" % library_name)
 		return
@@ -373,7 +376,7 @@ func _find_animation_player(node: Node) -> AnimationPlayer:
 	return null
 
 
-func _update_animation() -> void:
+func _update_animation(planar_speed: float) -> void:
 	if _animation_player == null:
 		return
 	if _celebrating:
@@ -389,21 +392,19 @@ func _update_animation() -> void:
 			_play_animation_token("Jump_Full_Short", 1.0)
 	elif _landing_time_left > 0.0:
 		_play_animation_token("Jump_Land", 1.15)
-	elif Vector2(velocity.x, velocity.z).length() > 0.7:
-		var speed_ratio := Vector2(velocity.x, velocity.z).length() / maxf(move_speed, 0.1)
+	elif planar_speed > 0.7:
+		var speed_ratio := planar_speed / maxf(move_speed, 0.1)
 		_play_animation_token("Running_A", clampf(0.86 + speed_ratio * 0.22, 0.9, 1.5))
 	else:
 		_play_animation_token("Idle", 1.0)
 
 
-func _update_visual_feedback(delta: float) -> void:
+func _update_visual_feedback(delta: float, planar_speed: float) -> void:
 	if _visual_root == null:
 		return
 	var target_scale := Vector3.ONE
 	var target_pitch := 0.0
 	var target_roll := 0.0
-	var planar_speed := Vector2(velocity.x, velocity.z).length()
-
 	if _knockback_active:
 		target_scale = Vector3(0.94, 1.05, 0.94)
 		target_pitch = -0.12
@@ -421,7 +422,7 @@ func _update_visual_feedback(delta: float) -> void:
 		target_pitch = clampf(planar_speed / maxf(move_speed, 0.1), 0.0, 1.0) * 0.045
 
 	if controls_enabled and planar_speed > 0.3:
-		var local_velocity := _visual_root.global_transform.basis.orthonormalized().inverse() * velocity
+		var local_velocity := _visual_root.global_transform.basis.orthonormalized().transposed() * velocity
 		target_roll = clampf(-local_velocity.x / maxf(move_speed, 0.1), -1.0, 1.0) * 0.07
 
 	_visual_feedback_scale = _visual_feedback_scale.lerp(target_scale, 1.0 - exp(-13.0 * delta))
@@ -441,10 +442,14 @@ func _play_animation_token(token: String, speed: float) -> void:
 		_animation_player.speed_scale = speed
 
 
-func _resolve_animation(token: String) -> StringName:
-	var lower_token := token.to_lower()
+func _resolve_animation(token: StringName) -> StringName:
+	if _animation_token_cache.has(token):
+		return _animation_token_cache[token]
+	var lower_token := String(token).to_lower()
 	for animation_name in _animation_player.get_animation_list():
 		var lower_name := String(animation_name).to_lower()
-		if lower_name.ends_with(lower_token.to_lower()) or lower_name.contains(lower_token):
+		if lower_name.ends_with(lower_token) or lower_name.contains(lower_token):
+			_animation_token_cache[token] = animation_name
 			return animation_name
+	_animation_token_cache[token] = &""
 	return &""

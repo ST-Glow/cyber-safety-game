@@ -35,6 +35,10 @@ var confirm_audio: AudioStreamPlayer
 var error_audio: AudioStreamPlayer
 var _assistant_open: bool = false
 var _quiz_accepts_input: bool = false
+var _last_hud_percent: int = -1
+var _last_hud_elapsed_second: int = -1
+var _last_hud_score: int = -1
+var _last_hud_dash_key: int = -2
 
 
 func _ready() -> void:
@@ -88,17 +92,27 @@ func show_running() -> void:
 
 
 func update_hud(progress: float, elapsed: float, score: int, dash_cooldown_left: float, dash_cooldown: float) -> void:
-	var percent := int(round(progress * 100.0))
-	progress_bar.value = percent
-	progress_label.text = "赛道进度  %d%%" % percent
-	time_label.text = "时间  %02d:%02d" % [int(elapsed) / 60, int(elapsed) % 60]
-	score_label.text = "闯关表现  %d / 40" % score
-	if dash_cooldown_left <= 0.01:
-		dash_label.text = "冲刺  就绪"
-		dash_label.modulate = Color("7bffd2")
-	else:
-		dash_label.text = "冲刺  %.1fs" % dash_cooldown_left
-		dash_label.modulate = Color("ffe77d")
+	var percent := clampi(int(round(progress * 100.0)), 0, 100)
+	if percent != _last_hud_percent:
+		_last_hud_percent = percent
+		progress_bar.value = percent
+		progress_label.text = "赛道进度  %d%%" % percent
+	var elapsed_second := maxi(0, int(elapsed))
+	if elapsed_second != _last_hud_elapsed_second:
+		_last_hud_elapsed_second = elapsed_second
+		time_label.text = "时间  %02d:%02d" % [elapsed_second / 60, elapsed_second % 60]
+	if score != _last_hud_score:
+		_last_hud_score = score
+		score_label.text = "闯关表现  %d / 40" % score
+	var dash_key := -1 if dash_cooldown_left <= 0.01 else int(round(dash_cooldown_left * 10.0))
+	if dash_key != _last_hud_dash_key:
+		_last_hud_dash_key = dash_key
+		if dash_key < 0:
+			dash_label.text = "冲刺  就绪"
+			dash_label.modulate = Color("7bffd2")
+		else:
+			dash_label.text = "冲刺  %.1fs" % (float(dash_key) / 10.0)
+			dash_label.modulate = Color("ffe77d")
 
 
 func show_quiz(question: QuizQuestion) -> void:

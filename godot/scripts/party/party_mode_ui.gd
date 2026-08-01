@@ -45,6 +45,11 @@ var confirm_audio: AudioStreamPlayer
 var error_audio: AudioStreamPlayer
 var _quiz_accepts_input: bool = false
 var _last_countdown_sound: int = -1
+var _last_hud_seconds: int = -1
+var _last_hud_state: String = ""
+var _last_hud_primary: String = ""
+var _last_hud_secondary: String = ""
+var _last_hud_progress: int = -1
 
 
 func _ready() -> void:
@@ -76,6 +81,11 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func reset_view(time_limit: float) -> void:
+	_last_hud_seconds = -1
+	_last_hud_state = ""
+	_last_hud_primary = ""
+	_last_hud_secondary = ""
+	_last_hud_progress = -1
 	result_overlay.visible = false
 	quiz_overlay.visible = false
 	_quiz_accepts_input = false
@@ -87,11 +97,22 @@ func reset_view(time_limit: float) -> void:
 
 func update_hud(time_left: float, state_text: String, primary_text: String, secondary_text: String, progress: float) -> void:
 	var seconds := maxi(0, ceili(time_left))
-	time_label.text = "剩余时间  %02d:%02d" % [seconds / 60, seconds % 60]
-	state_label.text = state_text
-	primary_label.text = primary_text
-	secondary_label.text = secondary_text
-	progress_bar.value = clampf(progress * 100.0, 0.0, 100.0)
+	if seconds != _last_hud_seconds:
+		_last_hud_seconds = seconds
+		time_label.text = "剩余时间  %02d:%02d" % [seconds / 60, seconds % 60]
+	if state_text != _last_hud_state:
+		_last_hud_state = state_text
+		state_label.text = state_text
+	if primary_text != _last_hud_primary:
+		_last_hud_primary = primary_text
+		primary_label.text = primary_text
+	if secondary_text != _last_hud_secondary:
+		_last_hud_secondary = secondary_text
+		secondary_label.text = secondary_text
+	var progress_percent := clampi(int(round(progress * 100.0)), 0, 100)
+	if progress_percent != _last_hud_progress:
+		_last_hud_progress = progress_percent
+		progress_bar.value = progress_percent
 
 
 func show_countdown(seconds_left: int) -> void:

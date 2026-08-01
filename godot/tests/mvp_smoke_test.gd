@@ -60,6 +60,11 @@ func _run_test() -> void:
 				if not target_path.is_empty() and animation_root.get_node_or_null(target_path) == null:
 					missing_animation_targets += 1
 		_expect(missing_animation_targets == 0, "KayKit animation tracks target the Ranger rig")
+		_expect(animation_player.get_animation(&"General/Idle_A").loop_mode == Animation.LOOP_NONE, "idle loop mode remains unchanged during performance work")
+		_expect(animation_player.get_animation(&"MovementBasic/Running_A").loop_mode == Animation.LOOP_NONE, "running loop mode remains unchanged during performance work")
+		var cache_size := int((player.get("_animation_token_cache") as Dictionary).size())
+		player.call("_resolve_animation", &"Idle")
+		_expect(int((player.get("_animation_token_cache") as Dictionary).size()) == cache_size, "resolved animation tokens are served from cache")
 	_expect(sweeper != null, "rotating sweeper exists")
 	_expect(spring_arm != null and spring_arm.collision_mask == 1, "camera collides with static course geometry only")
 	_expect(InputMap.has_action("camera_left") and InputMap.has_action("camera_right") and InputMap.has_action("camera_reset"), "main level exposes rotate and recenter camera controls")

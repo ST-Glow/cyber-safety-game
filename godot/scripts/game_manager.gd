@@ -38,7 +38,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if not assistant_open and state in [GameState.RUNNING, GameState.KNOCKBACK]:
+	if not assistant_open and (state == GameState.RUNNING or state == GameState.KNOCKBACK):
 		elapsed_seconds += delta
 		_refresh_live_score()
 

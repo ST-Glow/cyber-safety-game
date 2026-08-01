@@ -43,8 +43,17 @@ Existing Web artifact sizes before the optimization work:
 
 ## Animation and rig characterization
 
-The runtime combines 53 animations. All eight gameplay tokens resolve to the intended KayKit libraries, and all 263 tracks in the selected clips target nodes or bones present in the Ranger Rig Medium hierarchy. `Idle_A` and `Running_A` arrive with looping disabled; the optimized runtime explicitly enables linear looping for those two locomotion clips. Other selected clips remain one-shot and character movement continues to be driven by `CharacterBody3D`, without root-motion displacement.
+The runtime combines 53 animations. All eight gameplay tokens resolve to the intended KayKit libraries, and all 263 tracks in the selected clips target nodes or bones present in the Ranger Rig Medium hierarchy. `Idle_A` and `Running_A` arrive with looping disabled. That state is recorded explicitly and remains unchanged during the behavior-preserving performance phase; character movement continues to be driven by `CharacterBody3D`, without root-motion displacement.
 
 ## Post-optimization results
 
-Pending implementation and final Web verification.
+The first hot-path pass was also compared against `bea06b9` in a detached worktree during the same measurement window. This shorter gate used three runs with a 3-second warmup and 10-second sample so that system load was comparable before committing the change.
+
+| Scenario | Baseline P95 ms | Hot-path P95 ms | Baseline process ms | Hot-path process ms | Process change |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Main running | 16.780 | 16.757 | 0.236 | 0.206 | -12.7% |
+| Spinner active | 16.818 | 16.771 | 0.231 | 0.218 | -5.6% |
+| Collection with 12 chips | 16.748 | 16.749 | 0.256 | 0.247 | -3.5% |
+| Survival wave 3 | 16.768 | 16.753 | 0.282 | 0.270 | -4.3% |
+
+All P95 changes are within 0.3%, and the median process time improved in all four scenarios. The definitive 5-second/30-second suite and Web-rendering checks remain part of final verification.
