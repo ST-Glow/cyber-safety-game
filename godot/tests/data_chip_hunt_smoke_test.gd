@@ -61,6 +61,7 @@ func _run_test() -> void:
 	_expect(manager.state == PartyModeManager.RunState.COUNTDOWN, "collection level starts in countdown")
 	_expect(not player.controls_enabled, "collection controls are locked during countdown")
 	_expect(is_equal_approx(manager.time_left, 75.0), "collection deadline is 75 seconds")
+	var mover_start := mover_a.position
 	manager.begin_run_now()
 	await physics_frame
 	_expect(manager.is_running() and player.controls_enabled, "countdown completion starts collection")
@@ -71,10 +72,14 @@ func _run_test() -> void:
 	player.velocity.y = 0.0
 	spring_pad.call("_on_body_entered", player)
 	_expect(player.velocity.y >= spring_pad.bounce_velocity, "spring pad applies its configured bounce velocity")
-	_expect(float(spring_pad.get("_cooldown_left")) > 0.0, "spring pad starts its retrigger cooldown")
-	await create_timer(0.05, true, false, true).timeout
-	_expect(spring_pad.is_processing() and not spring_visual.scale.is_equal_approx(spring_scale_before), "spring pad pulse remains active")
-	var mover_start := mover_a.position
+	var spring_cooldown_before := float(spring_pad.get("_cooldown_left"))
+	_expect(spring_cooldown_before > 0.0, "spring pad starts its retrigger cooldown")
+	var spring_pulse_changed := false
+	for _frame in range(8):
+		await process_frame
+		if spring_visual.scale.distance_to(spring_scale_before) > 0.0005:
+			spring_pulse_changed = true
+	_expect(spring_pad.is_processing() and float(spring_pad.get("_cooldown_left")) < spring_cooldown_before and spring_pulse_changed, "spring pad cooldown and pulse remain active")
 	var camera_yaw_before := camera_rig.rotation.y
 	Input.action_press("camera_right")
 	for _frame in range(8):
@@ -126,6 +131,8 @@ func _run_test() -> void:
 	_expect(int(finished_results[0].get("collected_count", 0)) == 12, "collection result contains chip count")
 	_expect(finished_results[0].get("quiz_attempts_by_checkpoint", []) == [2, 1], "collection result contains quiz attempts")
 	_expect(finished_results[0].has("score") and finished_results[0].has("score_breakdown"), "collection result contains normalized score components")
+	_expect(finished_results[0].get("score") == finished_results[0].get("normalized_score"), "collection score and normalized score share the 100-point scale")
+	_expect(finished_results[0].get("score_schema_version", -1) == 2 and int(finished_results[0].get("score_breakdown", {}).get("maximum", -1)) == 100, "collection result uses score schema v2")
 
 	game.call("_on_restart_requested")
 	await _wait_physics_frames(2)

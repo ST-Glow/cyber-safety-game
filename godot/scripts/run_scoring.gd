@@ -24,6 +24,7 @@ static func build_score(
 		"performance": performance_score,
 		"time": time_score,
 		"total": total_score,
+		"maximum": 100,
 		"stars": 3 if total_score >= 85 else (2 if total_score >= 65 else 1),
 	}
 

@@ -103,7 +103,7 @@ func update_hud(progress: float, elapsed: float, score: int, dash_cooldown_left:
 		time_label.text = "时间  %02d:%02d" % [elapsed_second / 60, elapsed_second % 60]
 	if score != _last_hud_score:
 		_last_hud_score = score
-		score_label.text = "闯关表现  %d / 40" % score
+		score_label.text = "过程表现  %d / 40" % score
 	var dash_key := -1 if dash_cooldown_left <= 0.01 else int(round(dash_cooldown_left * 10.0))
 	if dash_key != _last_hud_dash_key:
 		_last_hud_dash_key = dash_key
@@ -150,7 +150,7 @@ func show_result(result: Dictionary) -> void:
 	_quiz_accepts_input = false
 	var star_count := int(result.get("stars", 1))
 	result_stars.text = "★".repeat(star_count) + "☆".repeat(3 - star_count)
-	result_score.text = "%d / 55 分" % int(result.get("score", 0))
+	result_score.text = "综合评分  %d / 100" % int(result.get("score", 0))
 	result_metrics.text = "完成用时  %.1f 秒\n机关碰撞  %d 次\n其中跌落  %d 次\n答题尝试  %d 次" % [
 		float(result.get("elapsed_seconds", 0.0)),
 		int(result.get("obstacle_hits", 0)),
@@ -238,7 +238,7 @@ func _build_hud() -> void:
 	stats_top.add_theme_constant_override("separation", 24)
 	stats_box.add_child(stats_top)
 	time_label = _new_label("时间  00:00", 17, Color("ffffff"))
-	score_label = _new_label("闯关表现  40 / 40", 17, Color("ffffff"))
+	score_label = _new_label("过程表现  40 / 40", 17, Color("ffffff"))
 	stats_top.add_child(time_label)
 	stats_top.add_child(score_label)
 	dash_label = _new_label("冲刺  就绪", 16, Color("7bffd2"))
@@ -353,7 +353,7 @@ func _build_result_overlay() -> void:
 	result_stars = _new_label("★★★", 48, Color("ffd84f"))
 	result_stars.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(result_stars)
-	result_score = _new_label("55 / 55 分", 30, Color("78f1df"))
+	result_score = _new_label("综合评分  100 / 100", 30, Color("78f1df"))
 	result_score.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(result_score)
 	var metrics_panel := _make_panel("Metrics", Color("202d53"), 18)

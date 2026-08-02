@@ -184,6 +184,8 @@ func _run_test() -> void:
 	_expect(finished_results[0].has("elapsed_seconds") and finished_results[0].has("falls"), "result contains time and falls")
 	_expect(finished_results[0].get("quiz_attempts", 0) == 5, "result contains all checkpoint quiz attempts")
 	_expect(finished_results[0].has("score") and finished_results[0].has("score_breakdown"), "spinner result contains normalized score components")
+	_expect(finished_results[0].get("score") == finished_results[0].get("normalized_score"), "spinner score and normalized score share the 100-point scale")
+	_expect(finished_results[0].get("score_schema_version", -1) == 2 and int(finished_results[0].get("score_breakdown", {}).get("maximum", -1)) == 100, "spinner result uses score schema v2")
 
 	# Restart returns mechanisms, checkpoints and results to the initial countdown state.
 	game.call("_on_restart_requested")

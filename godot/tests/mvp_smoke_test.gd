@@ -2,6 +2,7 @@ extends SceneTree
 
 const TEST_CLEANUP := preload("res://tests/test_cleanup.gd")
 const INPUT_DEFAULTS := preload("res://scripts/input_defaults.gd")
+const RUN_SCORING := preload("res://scripts/run_scoring.gd")
 
 var failures: Array[String] = []
 var jump_event_count: int = 0
@@ -34,6 +35,9 @@ func _run_test() -> void:
 	InputMap.erase_action(&"camera_reset")
 	INPUT_DEFAULTS.ensure_actions()
 	_expect(_action_has_physical_key(&"camera_reset", KEY_R), "central runtime input fallback restores a missing action")
+	var golden_score := RUN_SCORING.build_score([2], 0, 0, 0.0, 135.0, true)
+	_expect(int(golden_score.get("total", -1)) == 80 and int(golden_score.get("stars", -1)) == 2, "two-attempt clean scoring golden case is 80 points and two stars")
+	_expect(int(golden_score.get("maximum", -1)) == 100, "shared score breakdown declares a 100-point maximum")
 
 	var main_scene := load("res://scenes/main.tscn") as PackedScene
 	_expect(main_scene != null, "main scene loads")
@@ -52,8 +56,10 @@ func _run_test() -> void:
 	var sweeper := game.get_node_or_null("Obstacles/CognitionSweeper") as RotatingSweeper
 	var camera_rig := game.get_node_or_null("CameraRig") as Node3D
 	var spring_arm := game.get_node_or_null("CameraRig/SpringArm3D") as SpringArm3D
+	var game_ui := game.get_node_or_null("GameUI") as GameUI
 	_expect(manager != null, "game manager exists")
 	_expect(player != null, "Ranger player exists")
+	_expect(game_ui != null, "first-level UI exists")
 	var animation_player := player.get("_animation_player") as AnimationPlayer if player else null
 	_expect(animation_player != null, "Ranger animation player exists")
 	if animation_player:
@@ -88,7 +94,7 @@ func _run_test() -> void:
 	_expect(sweeper != null, "rotating sweeper exists")
 	_expect(spring_arm != null and spring_arm.collision_mask == 1, "camera collides with static course geometry only")
 	_expect(InputMap.has_action("camera_left") and InputMap.has_action("camera_right") and InputMap.has_action("camera_reset"), "main level exposes rotate and recenter camera controls")
-	if manager == null or player == null or sweeper == null:
+	if manager == null or player == null or sweeper == null or game_ui == null:
 		call_deferred("_finish")
 		return
 
@@ -100,6 +106,7 @@ func _run_test() -> void:
 	game.call("_on_start_requested")
 	await _wait_physics_frames(3)
 	_expect(manager.state == GameManager.GameState.RUNNING, "start enters RUNNING state")
+	_expect(game_ui.score_label.text.contains("过程表现") and game_ui.score_label.text.contains("/ 40"), "running HUD labels the 40-point process score")
 	var camera_yaw_before := camera_rig.rotation.y
 	Input.action_press("camera_right")
 	for _frame in range(8):
@@ -177,8 +184,12 @@ func _run_test() -> void:
 	await process_frame
 	_expect(manager.state == GameManager.GameState.FINISHED, "correct answer finishes the run")
 	_expect(manager.quiz_attempts == 2, "correct retry records two attempts")
-	_expect(completed_result.get("score", -1) == 50, "two-attempt clean run scores 50")
-	_expect(completed_result.get("stars", -1) == 3, "score 50 awards three stars")
+	_expect(completed_result.get("score", -1) == 80, "two-attempt clean run scores 80")
+	_expect(completed_result.get("stars", -1) == 2, "score 80 awards two stars")
+	_expect(completed_result.get("normalized_score", -1) == 80, "first-level normalized score matches its 100-point score")
+	_expect(completed_result.get("score_schema_version", -1) == 2, "first-level result uses score schema v2")
+	_expect(int(completed_result.get("score_breakdown", {}).get("maximum", -1)) == 100, "first-level score breakdown has a 100-point maximum")
+	_expect(game_ui.result_score.text.contains("综合评分") and game_ui.result_score.text.contains("/ 100"), "result UI labels the 100-point composite score")
 	for key in ["elapsed_seconds", "obstacle_hits", "falls", "quiz_attempts", "score", "normalized_score", "score_breakdown", "stars"]:
 		_expect(completed_result.has(key), "run_completed result contains %s" % key)
 

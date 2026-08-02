@@ -2,6 +2,10 @@ class_name GameManager
 extends Node
 
 const EXPERIMENT_EVENTS := preload("res://scripts/experiment_event_bridge.gd")
+const RUN_SCORING := preload("res://scripts/run_scoring.gd")
+
+const SCORE_SCHEMA_VERSION := 2
+const TARGET_TIME_SECONDS := 135.0
 
 signal run_started
 signal jump_used
@@ -172,7 +176,6 @@ func restart_to_ready() -> void:
 
 
 func get_result() -> Dictionary:
-	var normalized_score := int(round(float(score) / 55.0 * 100.0))
 	return {
 		"level_id": "ai_training_ground",
 		"level_name": "基础训练关",
@@ -182,24 +185,33 @@ func get_result() -> Dictionary:
 		"falls": falls,
 		"quiz_attempts": quiz_attempts,
 		"score": score,
-		"normalized_score": normalized_score,
+		"normalized_score": score,
+		"score_schema_version": SCORE_SCHEMA_VERSION,
 		"stars": stars,
 		"score_breakdown": {
 			"knowledge": knowledge_score,
 			"performance": course_score,
 			"time": time_score,
 			"total": score,
-			"maximum": 55,
+			"maximum": 100,
 		},
 	}
 
 
 func _finish_run() -> void:
-	knowledge_score = 15 if quiz_attempts == 1 else (10 if quiz_attempts == 2 else 5)
-	course_score = maxi(0, 25 - obstacle_hits * 2)
-	time_score = _get_time_score()
-	score = knowledge_score + course_score + time_score
-	stars = 3 if score >= 47 else (2 if score >= 36 else 1)
+	var score_breakdown := RUN_SCORING.build_score(
+		[quiz_attempts],
+		falls,
+		maxi(0, obstacle_hits - falls),
+		elapsed_seconds,
+		TARGET_TIME_SECONDS,
+		true
+	)
+	knowledge_score = int(score_breakdown.get("knowledge", 0))
+	course_score = int(score_breakdown.get("performance", 0))
+	time_score = int(score_breakdown.get("time", 0))
+	score = int(score_breakdown.get("total", 0))
+	stars = int(score_breakdown.get("stars", 1))
 	state = GameState.FINISHED
 	_result_pause_token = get_node("/root/PauseCoordinator").acquire(self, &"result")
 	get_node("/root/PauseCoordinator").release(_quiz_pause_token)
@@ -212,15 +224,17 @@ func _finish_run() -> void:
 
 func _refresh_live_score() -> void:
 	# During the run, display the currently secured course and time points.
-	course_score = maxi(0, 25 - obstacle_hits * 2)
+	var non_fall_hits := maxi(0, obstacle_hits - falls)
+	course_score = maxi(0, 25 - falls * 2 - non_fall_hits * 2)
 	time_score = _get_time_score()
 	score = course_score + time_score
 
 
 func _get_time_score() -> int:
-	if elapsed_seconds <= 90.0:
+	var completion_ratio := elapsed_seconds / TARGET_TIME_SECONDS
+	if completion_ratio <= 0.67:
 		return 15
-	if elapsed_seconds <= 120.0:
+	if completion_ratio <= 0.9:
 		return 10
 	return 5
 

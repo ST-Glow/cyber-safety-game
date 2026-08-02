@@ -151,6 +151,8 @@ func _run_test() -> void:
 	_expect(int(finished_results[0].get("calibrated_count", 0)) == 3, "successful result requires all three calibrations")
 	_expect(finished_results[0].has("hazard_hits") and finished_results[0].has("quiz_attempts_by_wave"), "survival result contains mode metrics")
 	_expect(finished_results[0].has("score") and int(finished_results[0].get("score_breakdown", {}).get("time", 0)) == 15, "survival result uses fixed-duration scoring")
+	_expect(finished_results[0].get("score") == finished_results[0].get("normalized_score"), "survival score and normalized score share the 100-point scale")
+	_expect(finished_results[0].get("score_schema_version", -1) == 2 and int(finished_results[0].get("score_breakdown", {}).get("maximum", -1)) == 100, "survival result uses score schema v2")
 	var campaign := root.get_node_or_null("CampaignSession")
 	var campaign_summary: Dictionary = campaign.call("get_campaign_summary") if campaign else {}
 	_expect(campaign_summary.get("completed_levels", 0) >= 1, "final result is stored in campaign summary")

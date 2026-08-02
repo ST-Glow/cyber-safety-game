@@ -194,6 +194,8 @@ func get_result(success: bool) -> Dictionary:
 		"quiz_attempts_by_checkpoint": quiz_attempts_by_checkpoint.duplicate(),
 		"quiz_attempts": _get_total_quiz_attempts(),
 		"score": int(score_breakdown.get("total", 0)),
+		"normalized_score": int(score_breakdown.get("total", 0)),
+		"score_schema_version": 2,
 		"stars": int(score_breakdown.get("stars", 1)),
 		"score_breakdown": score_breakdown,
 	}
