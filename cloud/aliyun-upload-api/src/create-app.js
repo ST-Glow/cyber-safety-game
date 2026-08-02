@@ -130,6 +130,7 @@ function createApp(options = {}) {
       coze_bot_id: coze.botId || config.cozeBotId,
       ai_profiles_configured: config.aiPromptsConfigured === true,
       ai_profile_count: config.aiPromptsConfigured ? Object.keys(config.aiLevelPrompts || {}).length : 0,
+      ai_profile_diagnostic: config.aiPromptsConfigured ? "" : config.aiPromptConfigError,
       api_version: "coze_level_assistant_v3",
       time: new Date().toISOString(),
     });

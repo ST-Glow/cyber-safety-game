@@ -24,6 +24,17 @@ test("all four level profiles are required", () => {
   assert.deepEqual(Object.keys(parsed.prompts).sort(), Object.keys(prompts).sort());
 });
 
+test("level profile JSON accepts a UTF-8 BOM from Windows configuration files", () => {
+  const result = parseLevelPrompts(`\uFEFF${JSON.stringify({
+    ai_training_ground: "one",
+    spinner_race: "two",
+    data_chip_hunt: "three",
+    signal_bomb_survival: "four",
+  })}`);
+  assert.equal(result.configured, true);
+  assert.equal(result.prompts.spinner_race, "two");
+});
+
 test("agent state is whitelisted and clamped per level", () => {
   assert.deepEqual(sanitizeAgentState("spinner_race", {
     checkpoint: 99,

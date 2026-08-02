@@ -26,11 +26,12 @@ const GLOBAL_TUTOR_RULES = [
 ].join("\n");
 
 function parseLevelPrompts(raw) {
-  if (!String(raw || "").trim()) {
+  const source = String(raw || "").replace(/^\uFEFF/, "").trim();
+  if (!source) {
     return { prompts: Object.freeze({}), configured: false, error: "AI_LEVEL_PROMPTS_JSON is missing" };
   }
   try {
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(source);
     if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") throw new Error("must be a JSON object");
     const prompts = {};
     for (const levelId of REQUIRED_LEVEL_IDS) {
