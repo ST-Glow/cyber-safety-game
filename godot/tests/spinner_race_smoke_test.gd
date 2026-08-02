@@ -33,6 +33,8 @@ func _run_test() -> void:
 	var spinner := game.get_node_or_null("Obstacles/Spinner") as RotatingSweeper
 	var mover_a := game.get_node_or_null("Obstacles/MovingPlatformA") as MovingPlatform
 	var mover_b := game.get_node_or_null("Obstacles/MovingPlatformB") as MovingPlatform
+	var left_route_spinner := game.get_node_or_null("Obstacles/LeftRouteSpinner") as RotatingSweeper
+	var right_route_spinner := game.get_node_or_null("Obstacles/RightRouteSpinner") as RotatingSweeper
 	var moving_dock_a := game.get_node_or_null("Track/MovingDockA") as StaticBody3D
 	var moving_dock_b := game.get_node_or_null("Track/MovingDockB") as StaticBody3D
 	var pusher := game.get_node_or_null("Obstacles/SidePusher1") as SidePusher
@@ -48,6 +50,7 @@ func _run_test() -> void:
 	_expect(spinner != null and spinner.get_node_or_null("SafetyBand1") != null, "spinner uses compact safety bands instead of a white cover strip")
 	_expect(spinner != null and spinner.get_node_or_null("SweepAudio") != null, "spinner has spatial sweep audio")
 	_expect(mover_a != null and mover_b != null, "two moving platforms exist")
+	_expect(left_route_spinner != null and right_route_spinner != null, "both finish lanes have a spinner")
 	_expect(moving_dock_a != null and moving_dock_b != null, "moving section has two staging docks")
 	_expect(pusher != null, "side pusher exists")
 	_expect(checkpoint != null, "checkpoint exists")
@@ -101,7 +104,11 @@ func _run_test() -> void:
 		and is_equal_approx(mover_a.initial_phase, mover_b.initial_phase),
 		"moving platforms remain mirrored throughout their animation"
 	)
-	_expect(_branch_routes_are_mirrored(game), "safe and shortcut route centerlines are mirrored")
+	_expect(_branch_routes_are_mirrored(game), "left and right finish lanes are mirrored and continuous")
+	_expect(
+		_route_spinners_are_mirrored(left_route_spinner, right_route_spinner),
+		"finish-lane spinners have mirrored geometry and motion"
+	)
 
 	var mover_start := mover_a.position
 	var spinner_start := spinner.rotation.y
@@ -245,27 +252,28 @@ func _z_gap(first_z: float, first_depth: float, second_z: float, second_depth: f
 
 
 func _branch_routes_are_mirrored(game: Node) -> bool:
-	var safe_routes := game.find_children("SafeRoute*", "StaticBody3D", true, false)
-	var shortcuts := game.find_children("ShortcutRoute*", "StaticBody3D", true, false)
-	if safe_routes.size() != 4 or shortcuts.size() != 4:
+	var track := game.get_node("Track")
+	var left_routes := track.find_children("LeftRoute*", "StaticBody3D", true, false)
+	var right_routes := track.find_children("RightRoute*", "StaticBody3D", true, false)
+	if left_routes.size() != 4 or right_routes.size() != 4:
 		return false
-	for safe_route in safe_routes:
+	for left_route in left_routes:
 		var has_mirror := false
-		for shortcut in shortcuts:
-			var safe_box := _find_box_shape(safe_route)
-			var shortcut_box := _find_box_shape(shortcut)
+		for right_route in right_routes:
+			var left_box := _find_box_shape(left_route)
+			var right_box := _find_box_shape(right_route)
 			if (
-				is_equal_approx(safe_route.position.z, shortcut.position.z)
-				and is_equal_approx(safe_route.position.x, -shortcut.position.x)
-				and safe_box != null
-				and shortcut_box != null
-				and safe_box.size == shortcut_box.size
+				is_equal_approx(left_route.position.z, right_route.position.z)
+				and is_equal_approx(left_route.position.x, -right_route.position.x)
+				and left_box != null
+				and right_box != null
+				and left_box.size == right_box.size
 			):
 				has_mirror = true
 				break
 		if not has_mirror:
 			return false
-	return _route_is_continuous(safe_routes) and _route_is_continuous(shortcuts)
+	return _route_is_continuous(left_routes) and _route_is_continuous(right_routes)
 
 
 func _find_box_shape(body: Node) -> BoxShape3D:
@@ -289,6 +297,21 @@ func _route_is_continuous(route_nodes: Array[Node]) -> bool:
 		if not is_equal_approx(centers[index] - centers[index - 1], platform_depth):
 			return false
 	return true
+
+
+func _route_spinners_are_mirrored(left_spinner: RotatingSweeper, right_spinner: RotatingSweeper) -> bool:
+	if left_spinner == null or right_spinner == null:
+		return false
+	return (
+		is_equal_approx(left_spinner.position.x, -right_spinner.position.x)
+		and is_equal_approx(left_spinner.position.z, right_spinner.position.z)
+		and is_equal_approx(left_spinner.arm_length, right_spinner.arm_length)
+		and is_equal_approx(left_spinner.arm_height, right_spinner.arm_height)
+		and is_equal_approx(left_spinner.arm_center_y, right_spinner.arm_center_y)
+		and is_equal_approx(left_spinner.period_seconds, right_spinner.period_seconds)
+		and is_equal_approx(left_spinner.initial_phase, PI - right_spinner.initial_phase)
+		and is_equal_approx(left_spinner.rotation_direction, -right_spinner.rotation_direction)
+	)
 
 
 func _wait_physics_frames(frame_count: int) -> void:

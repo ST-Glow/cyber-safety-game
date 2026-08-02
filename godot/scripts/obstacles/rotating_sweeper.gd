@@ -7,6 +7,7 @@ const SWEEP_SOUND := preload("res://assets/audio/kenney_ui_pack/switch-a.ogg")
 
 @export var period_seconds: float = 3.2
 @export var initial_phase: float = 0.0
+@export_range(-1.0, 1.0, 2.0) var rotation_direction: float = 1.0
 @export var arm_length: float = 10.5
 @export var arm_height: float = 0.45
 @export var arm_center_y: float = 0.82
@@ -28,7 +29,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	_elapsed += delta
 	_sweep_sound_time += delta
-	rotation.y = initial_phase + TAU * fmod(_elapsed, period_seconds) / period_seconds
+	rotation.y = initial_phase + rotation_direction * TAU * fmod(_elapsed, period_seconds) / period_seconds
 	_update_warning_feedback()
 	var sound_interval := maxf(period_seconds * 0.5, 0.35)
 	if _sweep_sound_time >= sound_interval:

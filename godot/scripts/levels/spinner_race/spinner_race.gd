@@ -155,18 +155,18 @@ func _build_track() -> void:
 		_add_imported_visual(track, YELLOW_PADDED_RAIL, Vector3(5.45, 0.0, float(railing_z)), Vector3.ONE, "KayKitRightRail%d" % railing_index, Vector3(0.0, -90.0, 0.0))
 		railing_index += 1
 
-	# Section 5: two equal, continuous lanes; the right lane is guarded by a spinner.
+	# Section 5: two equal, continuous lanes with mirrored spinner challenges.
 	_create_double_tile(track, Vector3(0.0, -1.0, -98.0), YELLOW_PLATFORM, "RouteSplit")
 	var branch_z_positions: Array[float] = [-103.5, -108.5, -113.5, -118.5]
-	var safe_positions: Array[Vector3] = []
-	var shortcut_positions: Array[Vector3] = []
+	var left_positions: Array[Vector3] = []
+	var right_positions: Array[Vector3] = []
 	for z_position in branch_z_positions:
-		safe_positions.append(Vector3(-BRANCH_CENTER_X, -0.5, z_position))
-		shortcut_positions.append(Vector3(BRANCH_CENTER_X, -0.5, z_position))
-	for index in range(safe_positions.size()):
-		_create_platform_box(track, BRANCH_PLATFORM_SIZE, safe_positions[index], Color("45d0a9"), "SafeRoute%d" % (index + 1), GREEN_PLATFORM_4)
-	for index in range(shortcut_positions.size()):
-		_create_platform_box(track, BRANCH_PLATFORM_SIZE, shortcut_positions[index], Color("ff8066"), "ShortcutRoute%d" % (index + 1), RED_PLATFORM_4)
+		left_positions.append(Vector3(-BRANCH_CENTER_X, -0.5, z_position))
+		right_positions.append(Vector3(BRANCH_CENTER_X, -0.5, z_position))
+	for index in range(left_positions.size()):
+		_create_platform_box(track, BRANCH_PLATFORM_SIZE, left_positions[index], Color("45d0a9"), "LeftRoute%d" % (index + 1), GREEN_PLATFORM_4)
+	for index in range(right_positions.size()):
+		_create_platform_box(track, BRANCH_PLATFORM_SIZE, right_positions[index], Color("ff8066"), "RightRoute%d" % (index + 1), RED_PLATFORM_4)
 	_create_double_tile(track, Vector3(0.0, -1.0, -124.0), YELLOW_PLATFORM, "FinishDeck")
 
 	_add_imported_visual(track, BLUE_ARCH, Vector3(0.0, 0.0, 9.5), Vector3.ONE * 1.8, "StartArch")
@@ -176,8 +176,8 @@ func _build_track() -> void:
 	for flag_position in [Vector3(-5.0, 0.0, -123.0), Vector3(5.0, 0.0, -123.0)]:
 		_add_imported_visual(track, YELLOW_FLAG, flag_position, Vector3.ONE * 1.25, "FinishFlag")
 	_add_course_label(track, "旋转障碍冲刺", Vector3(0.0, 4.6, 9.0), Color("fff6d6"))
-	_add_course_label(track, "安全路线", Vector3(-BRANCH_CENTER_X, 2.6, -101.5), Color("d6fff1"))
-	_add_course_label(track, "危险捷径", Vector3(BRANCH_CENTER_X, 2.6, -101.5), Color("fff0cc"))
+	_add_course_label(track, "左侧路线", Vector3(-BRANCH_CENTER_X, 2.6, -101.5), Color("d6fff1"))
+	_add_course_label(track, "右侧路线", Vector3(BRANCH_CENTER_X, 2.6, -101.5), Color("fff0cc"))
 
 
 func _spawn_player() -> void:
@@ -243,17 +243,31 @@ func _spawn_obstacles() -> void:
 		obstacle_root.add_child(pusher)
 		obstacles.append(pusher)
 
-	var shortcut_spinner := SWEEPER_SCENE.instantiate() as RotatingSweeper
-	shortcut_spinner.name = "ShortcutSpinner"
-	shortcut_spinner.position = Vector3(3.5, 0.0, -110.0)
-	shortcut_spinner.arm_length = 3.8
-	shortcut_spinner.arm_height = 0.38
-	shortcut_spinner.arm_center_y = 0.85
-	shortcut_spinner.period_seconds = 2.6
-	shortcut_spinner.initial_phase = 1.0
-	shortcut_spinner.hit_player.connect(_on_spinner_hit)
-	obstacle_root.add_child(shortcut_spinner)
-	obstacles.append(shortcut_spinner)
+	var left_route_spinner := SWEEPER_SCENE.instantiate() as RotatingSweeper
+	left_route_spinner.name = "LeftRouteSpinner"
+	left_route_spinner.position = Vector3(-BRANCH_CENTER_X, 0.0, -110.0)
+	left_route_spinner.arm_length = 3.8
+	left_route_spinner.arm_height = 0.38
+	left_route_spinner.arm_center_y = 0.85
+	left_route_spinner.period_seconds = 2.6
+	left_route_spinner.initial_phase = PI - 1.0
+	left_route_spinner.rotation_direction = -1.0
+	left_route_spinner.hit_player.connect(_on_spinner_hit)
+	obstacle_root.add_child(left_route_spinner)
+	obstacles.append(left_route_spinner)
+
+	var right_route_spinner := SWEEPER_SCENE.instantiate() as RotatingSweeper
+	right_route_spinner.name = "RightRouteSpinner"
+	right_route_spinner.position = Vector3(BRANCH_CENTER_X, 0.0, -110.0)
+	right_route_spinner.arm_length = 3.8
+	right_route_spinner.arm_height = 0.38
+	right_route_spinner.arm_center_y = 0.85
+	right_route_spinner.period_seconds = 2.6
+	right_route_spinner.initial_phase = 1.0
+	right_route_spinner.rotation_direction = 1.0
+	right_route_spinner.hit_player.connect(_on_spinner_hit)
+	obstacle_root.add_child(right_route_spinner)
+	obstacles.append(right_route_spinner)
 
 
 func _build_checkpoints() -> void:
