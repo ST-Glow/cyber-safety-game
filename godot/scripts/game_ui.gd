@@ -11,13 +11,13 @@ const CLICK_SOUND := preload("res://assets/audio/kenney_ui_pack/click-a.ogg")
 const CONFIRM_SOUND := preload("res://assets/audio/interface_sfx_pack_1/confirm_tones/style6/confirm_style_6_001.ogg")
 const ERROR_SOUND := preload("res://assets/audio/interface_sfx_pack_1/error_tones/style1/error_style_1_001.ogg")
 const UI_FONT: FontFile = preload("res://assets/ui/fonts/noto_sans_sc_ui_600.ttf")
+const AI_ASSISTANT_PANEL_SCRIPT := preload("res://scripts/ui/ai_assistant_panel.gd")
 
 var root: Control
 var ready_overlay: ColorRect
 var quiz_overlay: ColorRect
 var result_overlay: ColorRect
-var assistant_panel: PanelContainer
-var assistant_button: Button
+var assistant_widget
 var progress_bar: ProgressBar
 var progress_label: Label
 var time_label: Label
@@ -34,7 +34,6 @@ var next_button: Button
 var click_audio: AudioStreamPlayer
 var confirm_audio: AudioStreamPlayer
 var error_audio: AudioStreamPlayer
-var _assistant_open: bool = false
 var _quiz_accepts_input: bool = false
 var _last_hud_percent: int = -1
 var _last_hud_elapsed_second: int = -1
@@ -75,9 +74,8 @@ func show_ready() -> void:
 	ready_overlay.visible = true
 	quiz_overlay.visible = false
 	result_overlay.visible = false
-	assistant_panel.visible = false
-	assistant_button.visible = true
-	_assistant_open = false
+	assistant_widget.reset_run()
+	assistant_widget.set_gameplay_available(true)
 	_quiz_accepts_input = false
 	update_hud(0.0, 0.0, 40, 0.0, 2.5)
 
@@ -86,9 +84,8 @@ func show_running() -> void:
 	ready_overlay.visible = false
 	quiz_overlay.visible = false
 	result_overlay.visible = false
-	assistant_panel.visible = false
-	assistant_button.visible = true
-	_assistant_open = false
+	assistant_widget.reset_run()
+	assistant_widget.set_gameplay_available(true)
 	_quiz_accepts_input = false
 
 
@@ -122,9 +119,7 @@ func update_hud(progress: float, elapsed: float, score: int, dash_cooldown_left:
 
 
 func show_quiz(question: QuizQuestion) -> void:
-	assistant_panel.visible = false
-	assistant_button.visible = false
-	_assistant_open = false
+	assistant_widget.set_gameplay_available(false)
 	quiz_title.text = question.title
 	quiz_prompt.text = question.prompt
 	quiz_feedback.text = "选择你认为最准确的答案（鼠标点击或按数字键 1 / 2 / 3）"
@@ -151,8 +146,7 @@ func show_wrong_answer(selected_index: int, explanation: String) -> void:
 func show_result(result: Dictionary) -> void:
 	_play_audio(confirm_audio)
 	quiz_overlay.visible = false
-	assistant_panel.visible = false
-	assistant_button.visible = false
+	assistant_widget.set_gameplay_available(false)
 	_quiz_accepts_input = false
 	var star_count := int(result.get("stars", 1))
 	result_stars.text = "★".repeat(star_count) + "☆".repeat(3 - star_count)
@@ -300,7 +294,7 @@ func _build_ready_overlay() -> void:
 	start_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	start_button.pressed.connect(_on_start_pressed)
 	box.add_child(start_button)
-	var research_note := _new_label("本版本仅验证核心玩法，不包含录像、上传、学生编号或网络调用。", 14, Color("8ea1c2"))
+	var research_note := _new_label("带课堂票据的网页版可使用分关 AI 提示；不会向助手发送姓名、题目选项或完整轨迹。", 14, Color("8ea1c2"))
 	research_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(research_note)
 
@@ -384,46 +378,22 @@ func _build_result_overlay() -> void:
 
 
 func _build_assistant() -> void:
-	assistant_button = _make_button("AI 助手", Color("776af5"), Color.WHITE, 18)
-	assistant_button.name = "AssistantButton"
-	assistant_button.anchor_left = 1.0
-	assistant_button.anchor_top = 1.0
-	assistant_button.anchor_right = 1.0
-	assistant_button.anchor_bottom = 1.0
-	assistant_button.offset_left = -174.0
-	assistant_button.offset_top = -94.0
-	assistant_button.offset_right = -24.0
-	assistant_button.offset_bottom = -38.0
-	assistant_button.pressed.connect(_toggle_assistant)
-	root.add_child(assistant_button)
+	assistant_widget = AI_ASSISTANT_PANEL_SCRIPT.new()
+	assistant_widget.name = "AiAssistantPanel"
+	assistant_widget.open_changed.connect(func(open: bool) -> void: assistant_toggled.emit(open))
+	root.add_child(assistant_widget)
 
-	assistant_panel = _make_panel("AssistantPanel", Color(0.055, 0.075, 0.16, 0.97), 24)
-	assistant_panel.anchor_left = 1.0
-	assistant_panel.anchor_top = 1.0
-	assistant_panel.anchor_right = 1.0
-	assistant_panel.anchor_bottom = 1.0
-	assistant_panel.offset_left = -430.0
-	assistant_panel.offset_top = -320.0
-	assistant_panel.offset_right = -24.0
-	assistant_panel.offset_bottom = -108.0
-	assistant_panel.visible = false
-	root.add_child(assistant_panel)
-	var margin := _wrap_margin(assistant_panel, 26, 22)
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 12)
-	margin.add_child(box)
-	var header := HBoxContainer.new()
-	box.add_child(header)
-	var title := _new_label("AI 学习助手", 23, Color("ffffff"))
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(title)
-	var close_button := _make_button("关闭", Color("26355e"), Color("dce9ff"), 15)
-	close_button.custom_minimum_size = Vector2(76.0, 38.0)
-	close_button.pressed.connect(_toggle_assistant)
-	header.add_child(close_button)
-	var message := _new_label("助手接口将在下一阶段接入。\n\n当前占位入口用于验证：展开助手时，角色、计时和所有机关都会暂停；关闭后从原相位继续。", 17, Color("c5d7ef"))
-	message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(message)
+
+func configure_assistant(level_id: String, state_provider: Callable) -> void:
+	assistant_widget.configure(level_id, state_provider)
+
+
+func show_assistant_reminder() -> bool:
+	return assistant_widget.show_help_offer()
+
+
+func reset_assistant() -> void:
+	assistant_widget.reset_run()
 
 
 func _build_audio() -> void:
@@ -460,10 +430,10 @@ func _on_option_pressed(index: int) -> void:
 
 func _toggle_assistant() -> void:
 	_play_audio(click_audio)
-	_assistant_open = not _assistant_open
-	assistant_panel.visible = _assistant_open
-	assistant_button.text = "返回游戏" if _assistant_open else "AI 助手"
-	assistant_toggled.emit(_assistant_open)
+	if assistant_widget.overlay.visible:
+		assistant_widget.close()
+	else:
+		assistant_widget.open_manual()
 
 
 func _make_overlay(overlay_name: String, color: Color) -> ColorRect:

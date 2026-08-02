@@ -1,5 +1,7 @@
 "use strict";
 
+const { parseLevelPrompts } = require("./agent-context");
+
 function parseOrigins(value) {
   return String(value || "http://127.0.0.1:4173,http://localhost:4173")
     .split(",")
@@ -8,6 +10,7 @@ function parseOrigins(value) {
 }
 
 function loadConfig(environment = process.env) {
+  const levelPromptConfig = parseLevelPrompts(environment.AI_LEVEL_PROMPTS_JSON);
   const config = {
     linkSecret: environment.UPLOAD_LINK_SECRET || "",
     allowedOrigins: parseOrigins(environment.ALLOWED_ORIGINS),
@@ -22,6 +25,9 @@ function loadConfig(environment = process.env) {
     cozeOauthClientId: environment.COZE_JWT_OAUTH_CLIENT_ID || "1167033540105",
     cozeOauthPublicKeyId: environment.COZE_JWT_OAUTH_PUBLIC_KEY_ID || "HzkdmJpFJHuubOaaG3C6bmAjC0oLY6vX2AgtVz5X4ho",
     cozeOauthPrivateKey: environment.COZE_JWT_OAUTH_PRIVATE_KEY || "",
+    aiLevelPrompts: levelPromptConfig.prompts,
+    aiPromptsConfigured: levelPromptConfig.configured,
+    aiPromptConfigError: levelPromptConfig.error,
   };
   validateConfig(config);
   return config;

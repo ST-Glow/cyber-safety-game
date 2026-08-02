@@ -34,33 +34,39 @@ test("rejects expired and unsafe identifiers", () => {
 test("binds a Coze conversation session to one upload identity", () => {
   const session = createAgentSession({
     upload_id: claims.upload_id,
+    level_id: "spinner_race",
     conversation_id: "7500000000000000001",
     exp: claims.exp,
   }, secret);
-  assert.deepEqual(verifyAgentSession(session, secret, claims.upload_id, 1900000000), {
+  assert.deepEqual(verifyAgentSession(session, secret, claims.upload_id, "spinner_race", 1900000000), {
     v: 1,
     kind: "coze_conversation",
     upload_id: claims.upload_id,
+    level_id: "spinner_race",
     conversation_id: "7500000000000000001",
     exp: claims.exp,
   });
-  assert.throws(() => verifyAgentSession(session, secret, "another_upload", 1900000000), /agent_session_owner_mismatch/);
+  assert.throws(() => verifyAgentSession(session, secret, "another_upload", "spinner_race", 1900000000), /agent_session_owner_mismatch/);
+  assert.throws(() => verifyAgentSession(session, secret, claims.upload_id, "data_chip_hunt", 1900000000), /agent_session_level_mismatch/);
 });
 
 test("binds a short-lived Coze poll token to one upload identity", () => {
   const poll = createAgentPollToken({
     upload_id: claims.upload_id,
+    level_id: "spinner_race",
     conversation_id: "7500000000000000001",
     chat_id: "7500000000000000002",
     exp: claims.exp,
   }, secret);
-  assert.deepEqual(verifyAgentPollToken(poll, secret, claims.upload_id, 1900000000), {
+  assert.deepEqual(verifyAgentPollToken(poll, secret, claims.upload_id, "spinner_race", 1900000000), {
     v: 1,
     kind: "coze_chat_poll",
     upload_id: claims.upload_id,
+    level_id: "spinner_race",
     conversation_id: "7500000000000000001",
     chat_id: "7500000000000000002",
     exp: claims.exp,
   });
-  assert.throws(() => verifyAgentPollToken(poll, secret, "another_upload", 1900000000), /agent_poll_owner_mismatch/);
+  assert.throws(() => verifyAgentPollToken(poll, secret, "another_upload", "spinner_race", 1900000000), /agent_poll_owner_mismatch/);
+  assert.throws(() => verifyAgentPollToken(poll, secret, claims.upload_id, "data_chip_hunt", 1900000000), /agent_poll_level_mismatch/);
 });

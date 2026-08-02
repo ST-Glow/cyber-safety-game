@@ -50,6 +50,8 @@ var quiz_triggered: Array[bool] = [false, false]
 var pending_fall_respawn: bool = false
 var _quiz_pause_token: int = 0
 var _result_pause_token: int = 0
+var _assistant_prompted: bool = false
+var _assistant_pending: bool = false
 
 
 func _ready() -> void:
@@ -253,6 +255,7 @@ func _build_ui() -> void:
 	mode_ui.objective_text = "在75秒内探索三条路线，收集全部12枚AI芯片"
 	add_child(mode_ui)
 	mode_ui.configure_result_action(CampaignSession.is_campaign_run())
+	mode_ui.configure_assistant(LEVEL_ID, _get_ai_assistant_state)
 
 
 func _connect_signals() -> void:
@@ -263,9 +266,11 @@ func _connect_signals() -> void:
 	mode_manager.run_started.connect(_on_run_started)
 	mode_manager.time_expired.connect(_on_time_expired)
 	mode_manager.run_finished.connect(_on_run_finished)
+	mode_manager.assistance_damage_changed.connect(_on_assistance_damage_changed)
 	mode_ui.quiz_choice_selected.connect(_on_quiz_choice_selected)
 	mode_ui.restart_requested.connect(_on_restart_requested)
 	mode_ui.next_level_requested.connect(_on_next_level_requested)
+	mode_ui.assistant_toggled.connect(_on_assistant_toggled)
 
 
 func _on_countdown_changed(seconds_left: int) -> void:
@@ -340,6 +345,7 @@ func _on_knockback_finished() -> void:
 		_reset_party_camera()
 	elif mode_manager.is_running():
 		player.set_controls_enabled(true)
+	_try_show_assistant_reminder()
 
 
 func _on_time_expired() -> void:
@@ -382,6 +388,9 @@ func _reset_level() -> void:
 	get_node("/root/PauseCoordinator").release_owner(self)
 	_quiz_pause_token = 0
 	_result_pause_token = 0
+	_assistant_prompted = false
+	_assistant_pending = false
+	get_node("/root/AiAssistantService").clear_level_session(LEVEL_ID)
 	collected_count = 0
 	active_question = null
 	active_quiz_slot = 0
@@ -400,6 +409,33 @@ func _reset_level() -> void:
 	_reset_party_camera()
 	mode_manager.reset_run()
 	mode_ui.reset_view(mode_manager.time_limit_seconds)
+
+
+func _on_assistant_toggled(open: bool) -> void:
+	mode_manager.set_assistant_open(open)
+	player.set_controls_enabled(mode_manager.is_running())
+
+
+func _on_assistance_damage_changed(total: int) -> void:
+	if total >= 3 and not _assistant_prompted and mode_ui.assistant_widget.is_available():
+		_assistant_prompted = true
+		_assistant_pending = true
+
+
+func _try_show_assistant_reminder() -> void:
+	if not _assistant_pending or mode_manager.state != PartyModeManager.RunState.RUNNING:
+		return
+	_assistant_pending = false
+	if mode_ui.show_assistant_reminder():
+		player.set_controls_enabled(false)
+
+
+func _get_ai_assistant_state() -> Dictionary:
+	return {
+		"chips": collected_count,
+		"falls": mode_manager.falls,
+		"remaining_time": snappedf(mode_manager.time_left, 0.1),
+	}
 
 
 func _set_moving_platforms_active(active: bool) -> void:

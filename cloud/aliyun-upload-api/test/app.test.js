@@ -9,6 +9,13 @@ const { createTicket } = require("../src/auth");
 const { createApp } = require("../src/create-app");
 const { createCloudAdapter } = require("../src/cloud");
 
+const TEST_LEVEL_PROMPTS = Object.freeze({
+  ai_training_ground: "第一关隐藏教学档案",
+  spinner_race: "第二关隐藏教学档案",
+  data_chip_hunt: "第三关隐藏教学档案",
+  signal_bomb_survival: "第四关隐藏教学档案",
+});
+
 test("mock API accepts three files and writes a manifest", async (context) => {
   const mockRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cyber-upload-"));
   context.after(() => fs.rm(mockRoot, { recursive: true, force: true }));
@@ -89,6 +96,9 @@ test("Coze proxy authenticates the student and preserves a signed conversation",
     ossInternal: false,
     cozeApiToken: "test-token",
     cozeBotId: "7649339604520697891",
+    aiLevelPrompts: TEST_LEVEL_PROMPTS,
+    aiPromptsConfigured: true,
+    aiPromptConfigError: "",
   };
   const calls = [];
   let statusChecks = 0;
@@ -123,19 +133,29 @@ test("Coze proxy authenticates the student and preserves a signed conversation",
   const firstResponse = await fetch(`${base}/api/coze/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:4173" },
-    body: JSON.stringify({ ticket, message: "我卡住了" }),
+    body: JSON.stringify({
+      ticket,
+      level_id: "spinner_race",
+      trigger: "hurt_threshold",
+      message: "我卡住了",
+      state: { checkpoint: 2, obstacle_hits: 3, falls: 1, remaining_time: 42, answer: "secret" },
+    }),
   });
   assert.equal(firstResponse.status, 200);
   const first = await firstResponse.json();
   assert.equal(first.status, "pending");
   assert.ok(first.poll);
-  assert.equal(calls[0].userId, "web_upload_001");
+  assert.match(calls[0].userId, /^web_[a-f0-9]{24}$/);
+  assert.doesNotMatch(calls[0].userId, /upload_001/);
   assert.equal(calls[0].conversationId, "");
+  assert.match(calls[0].message, /第二关隐藏教学档案/);
+  assert.match(calls[0].message, /"checkpoint":2/);
+  assert.doesNotMatch(calls[0].message, /answer/);
 
   const statusResponse = await fetch(`${base}/api/coze/chat/status`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:4173" },
-    body: JSON.stringify({ ticket, poll: first.poll }),
+    body: JSON.stringify({ ticket, level_id: "spinner_race", poll: first.poll }),
   });
   assert.equal(statusResponse.status, 200);
   const waiting = await statusResponse.json();
@@ -145,7 +165,7 @@ test("Coze proxy authenticates the student and preserves a signed conversation",
   const completedResponse = await fetch(`${base}/api/coze/chat/status`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:4173" },
-    body: JSON.stringify({ ticket, poll: first.poll }),
+    body: JSON.stringify({ ticket, level_id: "spinner_race", poll: first.poll }),
   });
   assert.equal(completedResponse.status, 200);
   const completed = await completedResponse.json();
@@ -156,7 +176,14 @@ test("Coze proxy authenticates the student and preserves a signed conversation",
   const secondResponse = await fetch(`${base}/api/coze/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:4173" },
-    body: JSON.stringify({ ticket, message: "然后呢", session: completed.session }),
+    body: JSON.stringify({
+      ticket,
+      level_id: "spinner_race",
+      trigger: "manual",
+      message: "然后呢",
+      state: { checkpoint: 2, obstacle_hits: 3, falls: 1, remaining_time: 40 },
+      session: completed.session,
+    }),
   });
   assert.equal(secondResponse.status, 200);
   assert.equal(calls[3].conversationId, "7500000000000000001");
@@ -166,7 +193,29 @@ test("Coze proxy authenticates the student and preserves a signed conversation",
   const tamperedResponse = await fetch(`${base}/api/coze/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:4173" },
-    body: JSON.stringify({ ticket, message: "非法续接", session: tamperedSession }),
+    body: JSON.stringify({
+      ticket,
+      level_id: "spinner_race",
+      trigger: "manual",
+      message: "非法续接",
+      state: {},
+      session: tamperedSession,
+    }),
   });
   assert.equal(tamperedResponse.status, 400);
+
+  const crossLevelResponse = await fetch(`${base}/api/coze/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:4173" },
+    body: JSON.stringify({
+      ticket,
+      level_id: "data_chip_hunt",
+      trigger: "manual",
+      message: "继续提示",
+      state: { chips: 3, falls: 1, remaining_time: 40 },
+      session: completed.session,
+    }),
+  });
+  assert.equal(crossLevelResponse.status, 400);
+  assert.equal((await crossLevelResponse.json()).code, "agent_session_level_mismatch");
 });

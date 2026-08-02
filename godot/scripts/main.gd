@@ -29,6 +29,8 @@ var ui: GameUI
 var spawn_transform := Transform3D.IDENTITY
 var obstacles: Array[Node] = []
 var finish_triggered: bool = false
+var _assistant_prompted: bool = false
+var _assistant_pending: bool = false
 
 
 func _ready() -> void:
@@ -244,10 +246,12 @@ func _build_ui() -> void:
 	ui.next_level_requested.connect(_on_next_level_requested)
 	ui.quiz_choice_selected.connect(_on_quiz_choice_selected)
 	ui.assistant_toggled.connect(_on_assistant_toggled)
+	ui.configure_assistant("ai_training_ground", _get_ai_assistant_state)
 
 
 func _connect_game_signals() -> void:
 	game_manager.run_completed.connect(_on_run_completed)
+	game_manager.assistance_damage_changed.connect(_on_assistance_damage_changed)
 
 
 func _on_start_requested() -> void:
@@ -300,6 +304,7 @@ func _on_obstacle_hit(hit_player: PlayerController, source_position: Vector3) ->
 func _on_knockback_finished() -> void:
 	player.respawn_at(spawn_transform)
 	game_manager.finish_respawn()
+	_try_show_assistant_reminder()
 
 
 func _on_finish_body_entered(body: Node3D) -> void:
@@ -325,12 +330,41 @@ func _on_run_completed(result: Dictionary) -> void:
 
 func _reset_level() -> void:
 	finish_triggered = false
+	_assistant_prompted = false
+	_assistant_pending = false
+	get_node("/root/AiAssistantService").clear_level_session("ai_training_ground")
+	if ui:
+		ui.reset_assistant()
 	player.respawn_at(spawn_transform)
 	player.set_controls_enabled(false)
 	for obstacle in obstacles:
 		if obstacle.has_method("reset_phase"):
 			obstacle.call("reset_phase")
 	_reset_third_person_camera()
+
+
+func _on_assistance_damage_changed(total: int) -> void:
+	if total >= 3 and not _assistant_prompted and ui.assistant_widget.is_available():
+		_assistant_prompted = true
+		_assistant_pending = true
+
+
+func _try_show_assistant_reminder() -> void:
+	if not _assistant_pending or game_manager.state != GameManager.GameState.RUNNING:
+		return
+	_assistant_pending = false
+	if ui.show_assistant_reminder():
+		player.set_controls_enabled(false)
+
+
+func _get_ai_assistant_state() -> Dictionary:
+	var progress := clampf((COURSE_START_Z - player.global_position.z) / (COURSE_START_Z - COURSE_FINISH_Z), 0.0, 1.0)
+	return {
+		"progress": roundi(progress * 100.0),
+		"obstacle_hits": game_manager.obstacle_hits,
+		"falls": game_manager.falls,
+		"elapsed": snappedf(game_manager.elapsed_seconds, 0.1),
+	}
 
 
 func _update_camera(delta: float) -> void:

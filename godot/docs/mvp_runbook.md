@@ -65,3 +65,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\godot\tests\run_smoke_test
 ## 测试环境说明
 
 项目关闭了 Godot 的文件日志输出，避免受限环境无法写入 `AppData` 时触发日志轮转错误；控制台输出和自动化测试结果不受影响。需要恢复本地日志时，应先确认 `user://logs` 可写，再重新启用 `debug/file_logging/enable_file_logging.pc`。
+# 分关 AI 提示助手
+
+后端必须配置 `AI_LEVEL_PROMPTS_JSON`，其中包含 `ai_training_ground`、`spinner_race`、`data_chip_hunt`、`signal_bomb_survival` 四个非空隐藏教学档案。档案只保存在服务端环境变量中，不得写入 Godot 工程、Web 包或课堂链接。
+
+本地 Web 构建运行：
+
+```powershell
+.\tools\export_web.ps1 -ApiBaseUrl http://127.0.0.1:8787
+```
+
+正式构建先设置 HTTPS 地址 `AI_API_BASE_URL`，再运行同一脚本。脚本只把固定 API 根地址注入 `window.GODOT_AI_CONFIG`；课堂票据继续由签名链接的 `ticket` 参数提供，客户端不接受 URL 参数覆盖 API 地址。
+
+助手在无课堂票据、原生运行或后端未配置时安全禁用。四关各自维护会话；每局第 3 次有效受伤只询问一次，学生确认后才请求 AI。
+
+本地 HTTP 服务应使用后端 `ALLOWED_ORIGINS` 中登记的来源（示例为 `http://127.0.0.1:4174`），并通过 `http://127.0.0.1:4174/?ticket=<签名课堂票据>` 验证。浏览器 Network 请求中只应看到课堂票据、关卡 ID、触发原因、学生问题和白名单状态，不应出现 Coze 密钥、OAuth 私钥或隐藏档案。

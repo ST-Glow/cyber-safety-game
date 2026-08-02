@@ -50,6 +50,8 @@ var pending_checkpoint_spawn := Transform3D.IDENTITY
 var pending_checkpoint_question: QuizQuestion
 var _quiz_pause_token: int = 0
 var _result_pause_token: int = 0
+var _assistant_prompted: bool = false
+var _assistant_pending: bool = false
 
 func _ready() -> void:
 	_ensure_third_person_inputs()
@@ -313,6 +315,8 @@ func _build_ui() -> void:
 	race_ui.restart_requested.connect(_on_restart_requested)
 	race_ui.next_level_requested.connect(_on_next_level_requested)
 	race_ui.quiz_choice_selected.connect(_on_quiz_choice_selected)
+	race_ui.assistant_toggled.connect(_on_assistant_toggled)
+	race_ui.configure_assistant("spinner_race", _get_ai_assistant_state)
 
 
 func _connect_signals() -> void:
@@ -324,6 +328,7 @@ func _connect_signals() -> void:
 	race_manager.race_started.connect(_on_race_started)
 	race_manager.checkpoint_updated.connect(_on_checkpoint_updated)
 	race_manager.race_finished.connect(_on_race_finished)
+	race_manager.assistance_damage_changed.connect(_on_assistance_damage_changed)
 
 
 func _on_race_started() -> void:
@@ -382,6 +387,7 @@ func _on_knockback_finished() -> void:
 		camera_rig.position = player.global_position + Vector3(0.0, 1.65, -1.7)
 	elif race_manager.is_running():
 		player.set_controls_enabled(true)
+	_try_show_assistant_reminder()
 
 
 func _on_checkpoint_activated(checkpoint_index: int, spawn_transform: Transform3D, checkpoint: RaceCheckpoint) -> void:
@@ -464,6 +470,9 @@ func _reset_race() -> void:
 	get_node("/root/PauseCoordinator").release_owner(self)
 	_quiz_pause_token = 0
 	_result_pause_token = 0
+	_assistant_prompted = false
+	_assistant_pending = false
+	get_node("/root/AiAssistantService").clear_level_session("spinner_race")
 	finish_triggered = false
 	pending_fall_respawn = false
 	_clear_pending_checkpoint()
@@ -478,6 +487,34 @@ func _reset_race() -> void:
 	_reset_third_person_camera()
 	race_manager.reset_race(initial_spawn)
 	race_ui.reset_view()
+
+
+func _on_assistant_toggled(open: bool) -> void:
+	race_manager.set_assistant_open(open)
+	player.set_controls_enabled(race_manager.is_running())
+
+
+func _on_assistance_damage_changed(total: int) -> void:
+	if total >= 3 and not _assistant_prompted and race_ui.assistant_widget.is_available():
+		_assistant_prompted = true
+		_assistant_pending = true
+
+
+func _try_show_assistant_reminder() -> void:
+	if not _assistant_pending or race_manager.state != SpinnerRaceManager.RaceState.RUNNING:
+		return
+	_assistant_pending = false
+	if race_ui.show_assistant_reminder():
+		player.set_controls_enabled(false)
+
+
+func _get_ai_assistant_state() -> Dictionary:
+	return {
+		"checkpoint": race_manager.checkpoint_index,
+		"obstacle_hits": race_manager.obstacle_hits,
+		"falls": race_manager.falls,
+		"remaining_time": snappedf(race_manager.time_left, 0.1),
+	}
 
 
 func _get_checkpoint_question(checkpoint_index: int) -> QuizQuestion:

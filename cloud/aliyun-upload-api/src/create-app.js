@@ -12,6 +12,13 @@ const {
 const { loadConfig } = require("./config");
 const { createCloudAdapter, objectNames, objectPrefix } = require("./cloud");
 const { createCozeAdapter } = require("./coze");
+const {
+  isKnownLevelId,
+  normalizeTrigger,
+  sanitizeAgentState,
+  buildAgentMessage,
+  filterAgentReply,
+} = require("./agent-context");
 
 const LIMITS = {
   events: { max: 10 * 1024 * 1024, types: ["application/x-ndjson", "application/jsonl", "application/octet-stream"] },
@@ -31,8 +38,11 @@ function cozeErrorStatus(code) {
     || code.startsWith("agent_poll_")
     || code === "conversation_id_invalid"
     || code === "chat_id_invalid"
+    || code === "agent_level_invalid"
+    || code === "agent_trigger_invalid"
+    || code === "agent_state_invalid"
   ) return 400;
-  if (code === "coze_not_configured") return 503;
+  if (code === "coze_not_configured" || code === "agent_prompts_not_configured") return 503;
   return 502;
 }
 
@@ -63,6 +73,11 @@ function validateFile(info, key) {
 function bearerTicket(request) {
   const header = String(request.headers.authorization || "");
   return header.startsWith("Bearer ") ? header.slice(7) : "";
+}
+
+function cozeUserId(uploadId, secret) {
+  const digest = crypto.createHmac("sha256", secret).update(`coze:${uploadId}`).digest("hex").slice(0, 24);
+  return `web_${digest}`;
 }
 
 function createRateLimiter({ limit = 12, windowMs = 5 * 60 * 1000 } = {}) {
@@ -113,7 +128,9 @@ function createApp(options = {}) {
       coze_configured: coze.configured,
       coze_auth_mode: coze.authMode || "custom",
       coze_bot_id: coze.botId || config.cozeBotId,
-      api_version: "coze_diagnostics_v2",
+      ai_profiles_configured: config.aiPromptsConfigured === true,
+      ai_profile_count: config.aiPromptsConfigured ? Object.keys(config.aiLevelPrompts || {}).length : 0,
+      api_version: "coze_level_assistant_v3",
       time: new Date().toISOString(),
     });
   });
@@ -147,6 +164,13 @@ function createApp(options = {}) {
     try {
       const body = request.body || {};
       const claims = verifyTicket(body.ticket, config.linkSecret);
+      const levelId = String(body.level_id || "");
+      if (!isKnownLevelId(levelId)) {
+        errorResponse(response, 400, "agent_level_invalid");
+        return;
+      }
+      const trigger = normalizeTrigger(body.trigger);
+      const state = sanitizeAgentState(levelId, body.state);
       const message = String(body.message || "").trim();
       if (!message || message.length > 800) {
         errorResponse(response, 400, "coze_message_invalid", "问题内容应为 1 至 800 个字符");
@@ -156,6 +180,10 @@ function createApp(options = {}) {
         errorResponse(response, 503, "coze_not_configured", "智能体服务尚未完成配置");
         return;
       }
+      if (!config.aiPromptsConfigured || !config.aiLevelPrompts?.[levelId]) {
+        errorResponse(response, 503, "agent_prompts_not_configured", config.aiPromptConfigError || "AI level profiles are not configured");
+        return;
+      }
       if (!consumeAgentQuota(claims.upload_id)) {
         errorResponse(response, 429, "coze_rate_limited", "提问过于频繁，请稍后再试");
         return;
@@ -163,18 +191,27 @@ function createApp(options = {}) {
 
       let conversationId = "";
       if (body.session) {
-        const session = verifyAgentSession(body.session, config.linkSecret, claims.upload_id);
+        const session = verifyAgentSession(body.session, config.linkSecret, claims.upload_id, levelId);
         conversationId = session.conversation_id;
       }
 
+      const upstreamMessage = buildAgentMessage({
+        levelId,
+        levelPrompt: config.aiLevelPrompts[levelId],
+        trigger,
+        state,
+        studentMessage: message,
+      });
+
       const result = await coze.startChat({
-        message,
+        message: upstreamMessage,
         conversationId,
-        userId: `web_${claims.upload_id}`,
+        userId: cozeUserId(claims.upload_id, config.linkSecret),
         diagnosticId,
       });
       const poll = createAgentPollToken({
         upload_id: claims.upload_id,
+        level_id: levelId,
         conversation_id: result.conversationId,
         chat_id: result.chatId,
         exp: Math.min(claims.exp, Math.floor(Date.now() / 1000) + 5 * 60),
@@ -201,7 +238,16 @@ function createApp(options = {}) {
     try {
       const body = request.body || {};
       const claims = verifyTicket(body.ticket, config.linkSecret);
-      const poll = verifyAgentPollToken(body.poll, config.linkSecret, claims.upload_id);
+      const levelId = String(body.level_id || "");
+      if (!isKnownLevelId(levelId)) {
+        errorResponse(response, 400, "agent_level_invalid");
+        return;
+      }
+      if (!config.aiPromptsConfigured || !config.aiLevelPrompts?.[levelId]) {
+        errorResponse(response, 503, "agent_prompts_not_configured", config.aiPromptConfigError || "AI level profiles are not configured");
+        return;
+      }
+      const poll = verifyAgentPollToken(body.poll, config.linkSecret, claims.upload_id, levelId);
       const result = await coze.getChatResult({
         chatId: poll.chat_id,
         conversationId: poll.conversation_id,
@@ -213,6 +259,7 @@ function createApp(options = {}) {
       }
       const session = createAgentSession({
         upload_id: claims.upload_id,
+        level_id: levelId,
         conversation_id: poll.conversation_id,
         exp: claims.exp,
       }, config.linkSecret);
@@ -221,7 +268,12 @@ function createApp(options = {}) {
         diagnostic_id: diagnosticId,
         operation: "chat_status",
       }));
-      response.json({ status: "completed", reply: result.reply, session, diagnostic_id: diagnosticId });
+      response.json({
+        status: "completed",
+        reply: filterAgentReply(result.reply, config.aiLevelPrompts[levelId]),
+        session,
+        diagnostic_id: diagnosticId,
+      });
     } catch (error) {
       cozeErrorResponse(response, error, diagnosticId);
     }

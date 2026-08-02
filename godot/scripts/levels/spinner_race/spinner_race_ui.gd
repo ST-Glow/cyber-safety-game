@@ -4,6 +4,7 @@ extends CanvasLayer
 signal restart_requested
 signal next_level_requested
 signal quiz_choice_selected(selected_index)
+signal assistant_toggled(open: bool)
 
 const UI_FONT: FontFile = preload("res://assets/ui/fonts/noto_sans_sc_ui_600.ttf")
 const CLICK_SOUND := preload("res://assets/audio/kenney_ui_pack/click-a.ogg")
@@ -14,6 +15,7 @@ const OPTION_CIRCLE: Texture2D = preload("res://assets/ui/kenney_ui_pack/svg/blu
 const OPTION_SELECTED: Texture2D = preload("res://assets/ui/kenney_ui_pack/svg/yellow/icon_circle.svg")
 const OPTION_WRONG: Texture2D = preload("res://assets/ui/kenney_ui_pack/svg/red/icon_cross.svg")
 const RESULT_STAR: Texture2D = preload("res://assets/ui/kenney_ui_pack/svg/yellow/star.svg")
+const AI_ASSISTANT_PANEL_SCRIPT := preload("res://scripts/ui/ai_assistant_panel.gd")
 
 var root: Control
 var time_label: Label
@@ -37,6 +39,7 @@ var click_audio: AudioStreamPlayer
 var countdown_audio: AudioStreamPlayer
 var confirm_audio: AudioStreamPlayer
 var error_audio: AudioStreamPlayer
+var assistant_widget
 var _quiz_accepts_input: bool = false
 var _last_countdown_sound: int = -1
 var _last_hud_seconds: int = -1
@@ -55,6 +58,7 @@ func _ready() -> void:
 	_build_countdown()
 	_build_quiz()
 	_build_result()
+	_build_assistant()
 	_build_audio()
 
 
@@ -89,12 +93,26 @@ func reset_view() -> void:
 	countdown_label.text = "3"
 	countdown_hint.text = "准备冲刺"
 	_last_countdown_sound = -1
+	assistant_widget.reset_run()
+	assistant_widget.set_gameplay_available(true)
 	update_race(3.0, 90.0, 0, 0, SpinnerRaceManager.RaceState.COUNTDOWN, 0.0)
 
 
 func configure_result_action(campaign_mode: bool) -> void:
 	if next_button:
 		next_button.text = "进入下一关" if campaign_mode else "返回主菜单"
+
+
+func configure_assistant(level_id: String, state_provider: Callable) -> void:
+	assistant_widget.configure(level_id, state_provider)
+
+
+func show_assistant_reminder() -> bool:
+	return assistant_widget.show_help_offer()
+
+
+func reset_assistant() -> void:
+	assistant_widget.reset_run()
 
 
 func show_countdown(seconds_left: int) -> void:
@@ -161,6 +179,7 @@ func update_race(
 
 
 func show_result(result: Dictionary) -> void:
+	assistant_widget.set_gameplay_available(false)
 	var success := bool(result.get("success", false))
 	var star_count := int(result.get("stars", 1))
 	var stars_text := "★".repeat(star_count) + "☆".repeat(3 - star_count)
@@ -182,6 +201,7 @@ func show_result(result: Dictionary) -> void:
 
 
 func show_quiz(question: QuizQuestion, checkpoint_index: int) -> void:
+	assistant_widget.set_gameplay_available(false)
 	countdown_panel.visible = false
 	result_overlay.visible = false
 	quiz_title.text = "AI知识检查点  %d / 4" % checkpoint_index
@@ -209,6 +229,7 @@ func show_wrong_answer(selected_index: int, explanation: String) -> void:
 
 func hide_quiz() -> void:
 	quiz_overlay.visible = false
+	assistant_widget.set_gameplay_available(true)
 	_quiz_accepts_input = false
 	_play_audio(confirm_audio)
 
@@ -434,6 +455,13 @@ func _build_result() -> void:
 	restart_button.pressed.connect(_on_restart_pressed)
 	box.add_child(restart_button)
 	result_overlay.visible = false
+
+
+func _build_assistant() -> void:
+	assistant_widget = AI_ASSISTANT_PANEL_SCRIPT.new()
+	assistant_widget.name = "AiAssistantPanel"
+	assistant_widget.open_changed.connect(func(open: bool) -> void: assistant_toggled.emit(open))
+	root.add_child(assistant_widget)
 
 
 func _build_audio() -> void:

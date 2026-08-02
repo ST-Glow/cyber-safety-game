@@ -9,6 +9,7 @@ signal race_started
 signal checkpoint_updated(checkpoint_index, spawn_transform)
 signal fall_registered(fall_count)
 signal obstacle_hit_registered(hit_count)
+signal assistance_damage_changed(total: int)
 signal player_respawned(checkpoint_index)
 signal checkpoint_quiz_opened(checkpoint_index)
 signal quiz_answered(checkpoint_index, selected_index, correct, attempt)
@@ -36,9 +37,11 @@ var checkpoint_index: int = 0
 var checkpoint_transform := Transform3D.IDENTITY
 var active_quiz_checkpoint: int = 0
 var quiz_attempts_by_checkpoint: Array[int] = [0, 0, 0, 0]
+var assistant_open: bool = false
 
 var _last_countdown_display: int = -1
 var _finish_emitted: bool = false
+var _assistant_pause_token: int = 0
 
 
 func _ready() -> void:
@@ -46,6 +49,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if assistant_open:
+		return
 	match state:
 		RaceState.COUNTDOWN:
 			countdown_left = maxf(0.0, countdown_left - delta)
@@ -60,6 +65,7 @@ func _process(delta: float) -> void:
 
 
 func reset_race(initial_spawn: Transform3D) -> void:
+	_release_assistant_pause()
 	state = RaceState.COUNTDOWN
 	countdown_left = countdown_duration
 	elapsed_seconds = 0.0
@@ -71,6 +77,7 @@ func reset_race(initial_spawn: Transform3D) -> void:
 	active_quiz_checkpoint = 0
 	quiz_attempts_by_checkpoint = [0, 0, 0, 0]
 	_finish_emitted = false
+	assistant_open = false
 	_last_countdown_display = -1
 	state_changed.emit(state)
 	_emit_countdown_if_changed()
@@ -85,7 +92,17 @@ func begin_race_now() -> void:
 
 
 func is_running() -> bool:
-	return state == RaceState.RUNNING
+	return state == RaceState.RUNNING and not assistant_open
+
+
+func set_assistant_open(value: bool) -> void:
+	if state in [RaceState.QUIZ, RaceState.FINISHED, RaceState.FAILED]:
+		return
+	assistant_open = value
+	if value and _assistant_pause_token == 0:
+		_assistant_pause_token = get_node("/root/PauseCoordinator").acquire(self, &"assistant")
+	elif not value:
+		_release_assistant_pause()
 
 
 func open_checkpoint_quiz(new_checkpoint_index: int) -> bool:
@@ -145,6 +162,7 @@ func register_fall() -> bool:
 		return false
 	falls += 1
 	fall_registered.emit(falls)
+	assistance_damage_changed.emit(falls + obstacle_hits)
 	EXPERIMENT_EVENTS.record(self, "player_fell", "spinner_race", {"falls": falls})
 	return true
 
@@ -154,6 +172,7 @@ func register_obstacle_hit() -> bool:
 		return false
 	obstacle_hits += 1
 	obstacle_hit_registered.emit(obstacle_hits)
+	assistance_damage_changed.emit(falls + obstacle_hits)
 	EXPERIMENT_EVENTS.record(self, "obstacle_hit", "spinner_race", {"obstacle_hits": obstacle_hits})
 	return true
 
@@ -217,6 +236,8 @@ func _finish(success: bool) -> void:
 	if _finish_emitted:
 		return
 	_finish_emitted = true
+	_release_assistant_pause()
+	assistant_open = false
 	state = RaceState.FINISHED if success else RaceState.FAILED
 	state_changed.emit(state)
 	var result := get_result(success)
@@ -237,3 +258,9 @@ func _get_total_quiz_attempts() -> int:
 	for attempt_count in quiz_attempts_by_checkpoint:
 		total += attempt_count
 	return total
+
+
+func _release_assistant_pause() -> void:
+	if _assistant_pause_token != 0:
+		get_node("/root/PauseCoordinator").release(_assistant_pause_token)
+		_assistant_pause_token = 0

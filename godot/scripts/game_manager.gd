@@ -11,6 +11,7 @@ signal run_started
 signal jump_used
 signal dash_used
 signal obstacle_hit
+signal assistance_damage_changed(total: int)
 signal player_respawned
 signal quiz_answered(selected_index, correct, attempt)
 signal run_completed(result)
@@ -104,6 +105,7 @@ func register_obstacle_hit() -> bool:
 	_refresh_live_score()
 	state_changed.emit(state)
 	obstacle_hit.emit()
+	assistance_damage_changed.emit(obstacle_hits)
 	EXPERIMENT_EVENTS.record(self, "obstacle_hit", "ai_training_ground", {"obstacle_hits": obstacle_hits})
 	return true
 
@@ -117,6 +119,7 @@ func register_fall() -> bool:
 	_refresh_live_score()
 	state_changed.emit(state)
 	obstacle_hit.emit()
+	assistance_damage_changed.emit(obstacle_hits)
 	EXPERIMENT_EVENTS.record(self, "player_fell", "ai_training_ground", {
 		"falls": falls,
 		"obstacle_hits": obstacle_hits,

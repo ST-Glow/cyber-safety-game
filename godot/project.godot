@@ -17,6 +17,7 @@ config/features=PackedStringArray("4.7", "GL Compatibility")
 [autoload]
 
 PauseCoordinator="*res://scripts/pause_coordinator.gd"
+AiAssistantService="*res://scripts/ai_assistant_service.gd"
 CampaignSession="*res://scripts/campaign_session.gd"
 ExperimentSession="*res://scripts/experiment_session.gd"
 SceneTransition="*res://scripts/scene_transition.gd"
