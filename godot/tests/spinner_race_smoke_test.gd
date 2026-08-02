@@ -33,6 +33,8 @@ func _run_test() -> void:
 	var spinner := game.get_node_or_null("Obstacles/Spinner") as RotatingSweeper
 	var mover_a := game.get_node_or_null("Obstacles/MovingPlatformA") as MovingPlatform
 	var mover_b := game.get_node_or_null("Obstacles/MovingPlatformB") as MovingPlatform
+	var moving_dock_a := game.get_node_or_null("Track/MovingDockA") as StaticBody3D
+	var moving_dock_b := game.get_node_or_null("Track/MovingDockB") as StaticBody3D
 	var pusher := game.get_node_or_null("Obstacles/SidePusher1") as SidePusher
 	var checkpoint := game.get_node_or_null("Checkpoints/Checkpoint1") as RaceCheckpoint
 	var finish_trigger := game.get_node_or_null("FinishTrigger") as Area3D
@@ -46,6 +48,7 @@ func _run_test() -> void:
 	_expect(spinner != null and spinner.get_node_or_null("SafetyBand1") != null, "spinner uses compact safety bands instead of a white cover strip")
 	_expect(spinner != null and spinner.get_node_or_null("SweepAudio") != null, "spinner has spatial sweep audio")
 	_expect(mover_a != null and mover_b != null, "two moving platforms exist")
+	_expect(moving_dock_a != null and moving_dock_b != null, "moving section has two staging docks")
 	_expect(pusher != null, "side pusher exists")
 	_expect(checkpoint != null, "checkpoint exists")
 	_expect(checkpoint != null and checkpoint.get_node_or_null("CheckpointAudio") != null, "checkpoint has activation audio")
@@ -79,6 +82,18 @@ func _run_test() -> void:
 	_expect(not player.controls_enabled, "movement is locked during countdown")
 	_expect(is_equal_approx(manager.time_left, 90.0), "race time limit is 90 seconds")
 	_expect(_count_collision_shapes(game.get_node("Track")) >= 20, "track platforms have collision shapes")
+	_expect(
+		moving_dock_a != null and moving_dock_b != null
+		and is_equal_approx(moving_dock_a.position.x, -moving_dock_b.position.x),
+		"moving-section staging docks mirror each other across the course center"
+	)
+	_expect(
+		_z_gap(moving_dock_a.position.z, 4.0, mover_a.position.z, mover_a.platform_size.z) >= 0.2
+		and _z_gap(mover_a.position.z, mover_a.platform_size.z, mover_b.position.z, mover_b.platform_size.z) >= 0.2
+		and _z_gap(mover_b.position.z, mover_b.platform_size.z, moving_dock_b.position.z, 4.0) >= 0.2,
+		"moving-section platform collision bounds do not overlap"
+	)
+	_expect(_branch_routes_are_mirrored(game), "safe and shortcut route centerlines are mirrored")
 
 	var mover_start := mover_a.position
 	var spinner_start := spinner.rotation.y
@@ -215,6 +230,26 @@ func _count_collision_shapes(node: Node) -> int:
 	for child in node.get_children():
 		count += _count_collision_shapes(child)
 	return count
+
+
+func _z_gap(first_z: float, first_depth: float, second_z: float, second_depth: float) -> float:
+	return absf(first_z - second_z) - (first_depth + second_depth) * 0.5
+
+
+func _branch_routes_are_mirrored(game: Node) -> bool:
+	var safe_routes := game.find_children("SafeRoute*", "StaticBody3D", true, false)
+	var shortcuts := game.find_children("ShortcutRoute*", "StaticBody3D", true, false)
+	if safe_routes.size() != 3 or shortcuts.size() != 3:
+		return false
+	for safe_route in safe_routes:
+		var has_mirror := false
+		for shortcut in shortcuts:
+			if is_equal_approx(safe_route.position.z, shortcut.position.z) and is_equal_approx(safe_route.position.x, -shortcut.position.x):
+				has_mirror = true
+				break
+		if not has_mirror:
+			return false
+	return true
 
 
 func _wait_physics_frames(frame_count: int) -> void:

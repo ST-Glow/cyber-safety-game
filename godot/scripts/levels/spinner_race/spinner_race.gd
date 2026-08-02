@@ -33,6 +33,8 @@ const UI_FONT: FontFile = preload("res://assets/ui/fonts/noto_sans_sc_ui_600.ttf
 const START_POSITION := Vector3(0.0, 0.08, 10.0)
 const COURSE_START_Z := 10.0
 const COURSE_FINISH_Z := -123.0
+const MOVING_SECTION_PLATFORM_DEPTH := 4.0
+const BRANCH_CENTER_X := 3.5
 
 var race_manager: SpinnerRaceManager
 var race_ui: SpinnerRaceUI
@@ -136,8 +138,8 @@ func _build_track() -> void:
 	_create_double_tile(track, Vector3(0.0, -1.0, -43.0), BLUE_PLATFORM, "MovingEntry")
 
 	# Section 3: two moving platforms and safe staging decks.
-	_create_platform_box(track, Vector3(4.5, 1.0, 5.0), Vector3(-3.0, -0.5, -49.0), Color("5a9ff1"), "MovingDockA", BLUE_PLATFORM_4)
-	_create_platform_box(track, Vector3(4.5, 1.0, 5.0), Vector3(3.0, -0.5, -62.0), Color("5a9ff1"), "MovingDockB", BLUE_PLATFORM_4)
+	_create_platform_box(track, Vector3(4.5, 1.0, MOVING_SECTION_PLATFORM_DEPTH), Vector3(-3.5, -0.5, -49.0), Color("5a9ff1"), "MovingDockA", BLUE_PLATFORM_4)
+	_create_platform_box(track, Vector3(4.5, 1.0, MOVING_SECTION_PLATFORM_DEPTH), Vector3(3.5, -0.5, -62.0), Color("5a9ff1"), "MovingDockB", BLUE_PLATFORM_4)
 	_create_double_tile(track, Vector3(0.0, -1.0, -68.0), BLUE_PLATFORM, "PusherEntry")
 
 	# Section 4: a wide lane with three reusable, side-to-side pushers.
@@ -153,10 +155,12 @@ func _build_track() -> void:
 
 	# Section 5: the left branch is broad and safe; the right branch is shorter but guarded.
 	_create_double_tile(track, Vector3(0.0, -1.0, -98.0), YELLOW_PLATFORM, "RouteSplit")
-	for safe_position in [Vector3(-3.5, -0.5, -104.0), Vector3(-6.0, -0.5, -111.0), Vector3(-6.0, -0.5, -118.0)]:
-		_create_platform_box(track, Vector3(6.0, 1.0, 6.0), safe_position, Color("45d0a9"), "SafeRoute", GREEN_PLATFORM_4)
-	for shortcut_position in [Vector3(3.5, -0.5, -104.0), Vector3(3.5, -0.5, -111.0), Vector3(3.0, -0.5, -118.0)]:
-		_create_platform_box(track, Vector3(4.2, 1.0, 5.5), shortcut_position, Color("ff8066"), "ShortcutRoute", RED_PLATFORM_4)
+	var safe_positions := [Vector3(-BRANCH_CENTER_X, -0.5, -104.0), Vector3(-BRANCH_CENTER_X, -0.5, -111.0), Vector3(-BRANCH_CENTER_X, -0.5, -118.0)]
+	for index in range(safe_positions.size()):
+		_create_platform_box(track, Vector3(6.0, 1.0, 6.0), safe_positions[index], Color("45d0a9"), "SafeRoute%d" % (index + 1), GREEN_PLATFORM_4)
+	var shortcut_positions := [Vector3(BRANCH_CENTER_X, -0.5, -104.0), Vector3(BRANCH_CENTER_X, -0.5, -111.0), Vector3(BRANCH_CENTER_X, -0.5, -118.0)]
+	for index in range(shortcut_positions.size()):
+		_create_platform_box(track, Vector3(4.2, 1.0, 5.5), shortcut_positions[index], Color("ff8066"), "ShortcutRoute%d" % (index + 1), RED_PLATFORM_4)
 	_create_double_tile(track, Vector3(0.0, -1.0, -124.0), YELLOW_PLATFORM, "FinishDeck")
 
 	_add_imported_visual(track, BLUE_ARCH, Vector3(0.0, 0.0, 9.5), Vector3.ONE * 1.8, "StartArch")
@@ -201,9 +205,9 @@ func _spawn_obstacles() -> void:
 
 	var moving_a := MOVING_PLATFORM_SCENE.instantiate() as MovingPlatform
 	moving_a.name = "MovingPlatformA"
-	moving_a.position = Vector3(1.0, -0.45, -50.5)
-	moving_a.platform_size = Vector3(5.0, 0.9, 5.0)
-	moving_a.movement_offset = Vector3(-5.5, 0.0, 0.0)
+	moving_a.position = Vector3(1.5, -0.45, -53.25)
+	moving_a.platform_size = Vector3(4.5, 0.9, MOVING_SECTION_PLATFORM_DEPTH)
+	moving_a.movement_offset = Vector3(-5.0, 0.0, 0.0)
 	moving_a.period_seconds = 4.2
 	moving_a.initial_phase = 0.0
 	moving_a.visual_scene = BLUE_ARROW_PLATFORM
@@ -212,11 +216,11 @@ func _spawn_obstacles() -> void:
 
 	var moving_b := MOVING_PLATFORM_SCENE.instantiate() as MovingPlatform
 	moving_b.name = "MovingPlatformB"
-	moving_b.position = Vector3(-1.0, -0.45, -57.5)
-	moving_b.platform_size = Vector3(5.0, 0.9, 5.0)
-	moving_b.movement_offset = Vector3(5.5, 0.0, 0.0)
+	moving_b.position = Vector3(-1.5, -0.45, -57.75)
+	moving_b.platform_size = Vector3(4.5, 0.9, MOVING_SECTION_PLATFORM_DEPTH)
+	moving_b.movement_offset = Vector3(5.0, 0.0, 0.0)
 	moving_b.period_seconds = 4.7
-	moving_b.initial_phase = PI
+	moving_b.initial_phase = 0.0
 	moving_b.visual_scene = YELLOW_ARROW_PLATFORM
 	obstacle_root.add_child(moving_b)
 	obstacles.append(moving_b)
