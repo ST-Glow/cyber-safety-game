@@ -177,7 +177,11 @@ func _run_test() -> void:
 	await _wait_physics_frames(12)
 	_expect(is_equal_approx(quiz_phase, sweeper.rotation.y), "quiz pauses obstacle phase")
 
-	game.call("_on_quiz_choice_selected", 1)
+	var wrong_answer_key := InputEventKey.new()
+	wrong_answer_key.physical_keycode = KEY_2
+	wrong_answer_key.pressed = true
+	game_ui._unhandled_input(wrong_answer_key)
+	await process_frame
 	_expect(manager.quiz_attempts == 1, "wrong answer counts one attempt")
 	_expect(manager.state == GameManager.GameState.QUIZ, "wrong answer keeps quiz open")
 	game.call("_on_quiz_choice_selected", 0)

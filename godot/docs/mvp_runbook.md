@@ -1,4 +1,19 @@
-# AI训练场大挑战：首个最小可玩版本
+# AI训练场大挑战：运行与验收手册
+
+## 当前入口与运行模式
+
+- F5 运行 `res://scenes/main_menu.tscn`，可选择四个单关或“派对流程”。
+- 单关模式结算后返回主菜单；派对流程从第一关开始，依次串联四关并在最终关展示汇总。
+- F6 仍可直接运行当前关卡场景，默认按单关模式处理。
+- 所有关卡结果统一使用 0–100 分、`score_schema_version = 2`；运行 HUD 显示“过程表现 /40”，结算显示“综合评分 /100”。
+
+完整自动回归从项目根目录运行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\godot\tests\run_smoke_tests.ps1
+```
+
+测试入口支持 `-GodotExe <path>`、`GODOT4_BIN`，最后回退到文档化的 Godot 4.7.1 路径。当前套件包含 9 项冒烟测试。
 
 ## 当前范围
 

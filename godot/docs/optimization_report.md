@@ -57,3 +57,26 @@ The first hot-path pass was also compared against `bea06b9` in a detached worktr
 | Survival wave 3 | 16.768 | 16.753 | 0.282 | 0.270 | -4.3% |
 
 All P95 changes are within 0.3%, and the median process time improved in all four scenarios. The definitive 5-second/30-second suite and Web-rendering checks remain part of final verification.
+
+## Final verification — 2026-08-02
+
+The definitive suite completed all 12 runs with a 5-second warmup and 30-second sample. The table reports the median run for scene-ready, process, physics, memory, object, and resource values; frame P95 is the median of the three per-run P95 values.
+
+| Scenario | Ready ms | Frame median ms | Frame P95 ms | Process median ms | Physics median ms | Static memory bytes | Objects | Resources |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Main running | 297.704 | 16.666 | 16.802 | 0.212 | 0.760 | 74,661,028 | 2,592 | 200 |
+| Spinner active | 360.662 | 16.665 | 16.832 | 0.226 | 0.801 | 95,099,755 | 2,683 | 217 |
+| Collection with 12 chips | 355.738 | 16.666 | 16.766 | 0.307 | 0.412 | 77,972,793 | 2,580 | 246 |
+| Survival wave 3 | 396.956 | 16.665 | 16.746 | 0.245 | 0.334 | 103,471,401 | 2,829 | 240 |
+
+Against the original long-run baseline, main and spinner P95 changed by less than 0.3%. Collection and survival P95 improved from roughly 30 ms to roughly 16.75 ms. Static memory changed by less than 0.3% in every scenario, so the 5% adoption gate for a shared resource factory was not met. The experimental material/mesh/collision cache was therefore not introduced; dynamic materials remain instance-owned. The measurements also did not isolate `PathHazard` distance calculation as a relevant cost, so that speculative cache was not retained.
+
+The final explicit Web export contains the menu, four levels, new autoloads, and only the required gameplay assets:
+
+- `index.pck`: 9,209,348 bytes (+0.18% from baseline)
+- `index.wasm`: 37,900,721 bytes (unchanged)
+- `index.js`: 315,645 bytes (unchanged)
+
+Headless Compatibility rendering reports zero draw calls by design. The exported build was therefore render-checked in the browser at 1280×720, 1366×768, and 1920×1080. In every viewport the Canvas matched the viewport exactly with no scroll overflow; all four single-level menu entries and the campaign entry opened their expected rendered scenes, Chinese glyphs loaded, and the page console contained no project warnings or errors.
+
+Final functional status: all nine smoke scripts pass, including real mouse menu clicks, numeric-key quiz input, spring-pad and tilt-bridge behavior, nested pause ownership, score-schema-v2 goldens, standalone return-to-menu, and the full four-level campaign flow.

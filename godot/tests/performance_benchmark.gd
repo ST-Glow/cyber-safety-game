@@ -42,10 +42,10 @@ func _run() -> void:
 	var game := packed_scene.instantiate()
 	root.add_child(game)
 	await process_frame
-	await physics_frame
 	var scene_ready_ms := float(Time.get_ticks_usec() - load_started_usec) / 1000.0
 	_activate_scenario(game)
 	await process_frame
+	await physics_frame
 	await _wait_wall_seconds(_warmup_seconds)
 
 	var frame_samples: Array[float] = []
