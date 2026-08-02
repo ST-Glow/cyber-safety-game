@@ -84,14 +84,22 @@ func _run_test() -> void:
 	_expect(_count_collision_shapes(game.get_node("Track")) >= 20, "track platforms have collision shapes")
 	_expect(
 		moving_dock_a != null and moving_dock_b != null
-		and is_equal_approx(moving_dock_a.position.x, -moving_dock_b.position.x),
-		"moving-section staging docks mirror each other across the course center"
+		and is_zero_approx(moving_dock_a.position.x)
+		and is_zero_approx(moving_dock_b.position.x),
+		"moving-section staging docks stay centered on the course"
 	)
 	_expect(
 		_z_gap(moving_dock_a.position.z, 4.0, mover_a.position.z, mover_a.platform_size.z) >= 0.2
 		and _z_gap(mover_a.position.z, mover_a.platform_size.z, mover_b.position.z, mover_b.platform_size.z) >= 0.2
 		and _z_gap(mover_b.position.z, mover_b.platform_size.z, moving_dock_b.position.z, 4.0) >= 0.2,
 		"moving-section platform collision bounds do not overlap"
+	)
+	_expect(
+		is_equal_approx(mover_a.position.x, -mover_b.position.x)
+		and is_equal_approx(mover_a.movement_offset.x, -mover_b.movement_offset.x)
+		and is_equal_approx(mover_a.period_seconds, mover_b.period_seconds)
+		and is_equal_approx(mover_a.initial_phase, mover_b.initial_phase),
+		"moving platforms remain mirrored throughout their animation"
 	)
 	_expect(_branch_routes_are_mirrored(game), "safe and shortcut route centerlines are mirrored")
 
@@ -239,15 +247,46 @@ func _z_gap(first_z: float, first_depth: float, second_z: float, second_depth: f
 func _branch_routes_are_mirrored(game: Node) -> bool:
 	var safe_routes := game.find_children("SafeRoute*", "StaticBody3D", true, false)
 	var shortcuts := game.find_children("ShortcutRoute*", "StaticBody3D", true, false)
-	if safe_routes.size() != 3 or shortcuts.size() != 3:
+	if safe_routes.size() != 4 or shortcuts.size() != 4:
 		return false
 	for safe_route in safe_routes:
 		var has_mirror := false
 		for shortcut in shortcuts:
-			if is_equal_approx(safe_route.position.z, shortcut.position.z) and is_equal_approx(safe_route.position.x, -shortcut.position.x):
+			var safe_box := _find_box_shape(safe_route)
+			var shortcut_box := _find_box_shape(shortcut)
+			if (
+				is_equal_approx(safe_route.position.z, shortcut.position.z)
+				and is_equal_approx(safe_route.position.x, -shortcut.position.x)
+				and safe_box != null
+				and shortcut_box != null
+				and safe_box.size == shortcut_box.size
+			):
 				has_mirror = true
 				break
 		if not has_mirror:
+			return false
+	return _route_is_continuous(safe_routes) and _route_is_continuous(shortcuts)
+
+
+func _find_box_shape(body: Node) -> BoxShape3D:
+	for child in body.get_children():
+		if child is CollisionShape3D and child.shape is BoxShape3D:
+			return child.shape as BoxShape3D
+	return null
+
+
+func _route_is_continuous(route_nodes: Array[Node]) -> bool:
+	var centers: Array[float] = []
+	var platform_depth := 0.0
+	for route_node in route_nodes:
+		var box := _find_box_shape(route_node)
+		if box == null:
+			return false
+		platform_depth = box.size.z
+		centers.append(route_node.position.z)
+	centers.sort()
+	for index in range(1, centers.size()):
+		if not is_equal_approx(centers[index] - centers[index - 1], platform_depth):
 			return false
 	return true
 

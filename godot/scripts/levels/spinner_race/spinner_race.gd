@@ -34,7 +34,9 @@ const START_POSITION := Vector3(0.0, 0.08, 10.0)
 const COURSE_START_Z := 10.0
 const COURSE_FINISH_Z := -123.0
 const MOVING_SECTION_PLATFORM_DEPTH := 4.0
-const BRANCH_CENTER_X := 3.5
+const MOVING_SECTION_TRAVEL := 4.0
+const BRANCH_CENTER_X := 3.0
+const BRANCH_PLATFORM_SIZE := Vector3(5.5, 1.0, 5.0)
 
 var race_manager: SpinnerRaceManager
 var race_ui: SpinnerRaceUI
@@ -137,9 +139,9 @@ func _build_track() -> void:
 	_create_static_cylinder(track, 7.25, 1.0, Vector3(0.0, -0.5, -31.0), Color("f06f72"), "SpinnerArena")
 	_create_double_tile(track, Vector3(0.0, -1.0, -43.0), BLUE_PLATFORM, "MovingEntry")
 
-	# Section 3: two moving platforms and safe staging decks.
-	_create_platform_box(track, Vector3(4.5, 1.0, MOVING_SECTION_PLATFORM_DEPTH), Vector3(-3.5, -0.5, -49.0), Color("5a9ff1"), "MovingDockA", BLUE_PLATFORM_4)
-	_create_platform_box(track, Vector3(4.5, 1.0, MOVING_SECTION_PLATFORM_DEPTH), Vector3(3.5, -0.5, -62.0), Color("5a9ff1"), "MovingDockB", BLUE_PLATFORM_4)
+	# Section 3: centered staging decks and a mirrored pair of moving platforms.
+	_create_platform_box(track, Vector3(4.5, 1.0, MOVING_SECTION_PLATFORM_DEPTH), Vector3(0.0, -0.5, -49.0), Color("5a9ff1"), "MovingDockA", BLUE_PLATFORM_4)
+	_create_platform_box(track, Vector3(4.5, 1.0, MOVING_SECTION_PLATFORM_DEPTH), Vector3(0.0, -0.5, -62.0), Color("5a9ff1"), "MovingDockB", BLUE_PLATFORM_4)
 	_create_double_tile(track, Vector3(0.0, -1.0, -68.0), BLUE_PLATFORM, "PusherEntry")
 
 	# Section 4: a wide lane with three reusable, side-to-side pushers.
@@ -153,14 +155,18 @@ func _build_track() -> void:
 		_add_imported_visual(track, YELLOW_PADDED_RAIL, Vector3(5.45, 0.0, float(railing_z)), Vector3.ONE, "KayKitRightRail%d" % railing_index, Vector3(0.0, -90.0, 0.0))
 		railing_index += 1
 
-	# Section 5: the left branch is broad and safe; the right branch is shorter but guarded.
+	# Section 5: two equal, continuous lanes; the right lane is guarded by a spinner.
 	_create_double_tile(track, Vector3(0.0, -1.0, -98.0), YELLOW_PLATFORM, "RouteSplit")
-	var safe_positions := [Vector3(-BRANCH_CENTER_X, -0.5, -104.0), Vector3(-BRANCH_CENTER_X, -0.5, -111.0), Vector3(-BRANCH_CENTER_X, -0.5, -118.0)]
+	var branch_z_positions: Array[float] = [-103.5, -108.5, -113.5, -118.5]
+	var safe_positions: Array[Vector3] = []
+	var shortcut_positions: Array[Vector3] = []
+	for z_position in branch_z_positions:
+		safe_positions.append(Vector3(-BRANCH_CENTER_X, -0.5, z_position))
+		shortcut_positions.append(Vector3(BRANCH_CENTER_X, -0.5, z_position))
 	for index in range(safe_positions.size()):
-		_create_platform_box(track, Vector3(6.0, 1.0, 6.0), safe_positions[index], Color("45d0a9"), "SafeRoute%d" % (index + 1), GREEN_PLATFORM_4)
-	var shortcut_positions := [Vector3(BRANCH_CENTER_X, -0.5, -104.0), Vector3(BRANCH_CENTER_X, -0.5, -111.0), Vector3(BRANCH_CENTER_X, -0.5, -118.0)]
+		_create_platform_box(track, BRANCH_PLATFORM_SIZE, safe_positions[index], Color("45d0a9"), "SafeRoute%d" % (index + 1), GREEN_PLATFORM_4)
 	for index in range(shortcut_positions.size()):
-		_create_platform_box(track, Vector3(4.2, 1.0, 5.5), shortcut_positions[index], Color("ff8066"), "ShortcutRoute%d" % (index + 1), RED_PLATFORM_4)
+		_create_platform_box(track, BRANCH_PLATFORM_SIZE, shortcut_positions[index], Color("ff8066"), "ShortcutRoute%d" % (index + 1), RED_PLATFORM_4)
 	_create_double_tile(track, Vector3(0.0, -1.0, -124.0), YELLOW_PLATFORM, "FinishDeck")
 
 	_add_imported_visual(track, BLUE_ARCH, Vector3(0.0, 0.0, 9.5), Vector3.ONE * 1.8, "StartArch")
@@ -170,8 +176,8 @@ func _build_track() -> void:
 	for flag_position in [Vector3(-5.0, 0.0, -123.0), Vector3(5.0, 0.0, -123.0)]:
 		_add_imported_visual(track, YELLOW_FLAG, flag_position, Vector3.ONE * 1.25, "FinishFlag")
 	_add_course_label(track, "旋转障碍冲刺", Vector3(0.0, 4.6, 9.0), Color("fff6d6"))
-	_add_course_label(track, "安全路线", Vector3(-6.0, 2.6, -101.5), Color("d6fff1"))
-	_add_course_label(track, "危险捷径", Vector3(3.5, 2.6, -101.5), Color("fff0cc"))
+	_add_course_label(track, "安全路线", Vector3(-BRANCH_CENTER_X, 2.6, -101.5), Color("d6fff1"))
+	_add_course_label(track, "危险捷径", Vector3(BRANCH_CENTER_X, 2.6, -101.5), Color("fff0cc"))
 
 
 func _spawn_player() -> void:
@@ -205,10 +211,10 @@ func _spawn_obstacles() -> void:
 
 	var moving_a := MOVING_PLATFORM_SCENE.instantiate() as MovingPlatform
 	moving_a.name = "MovingPlatformA"
-	moving_a.position = Vector3(1.5, -0.45, -53.25)
+	moving_a.position = Vector3(0.0, -0.45, -53.25)
 	moving_a.platform_size = Vector3(4.5, 0.9, MOVING_SECTION_PLATFORM_DEPTH)
-	moving_a.movement_offset = Vector3(-5.0, 0.0, 0.0)
-	moving_a.period_seconds = 4.2
+	moving_a.movement_offset = Vector3(-MOVING_SECTION_TRAVEL, 0.0, 0.0)
+	moving_a.period_seconds = 4.5
 	moving_a.initial_phase = 0.0
 	moving_a.visual_scene = BLUE_ARROW_PLATFORM
 	obstacle_root.add_child(moving_a)
@@ -216,10 +222,10 @@ func _spawn_obstacles() -> void:
 
 	var moving_b := MOVING_PLATFORM_SCENE.instantiate() as MovingPlatform
 	moving_b.name = "MovingPlatformB"
-	moving_b.position = Vector3(-1.5, -0.45, -57.75)
+	moving_b.position = Vector3(0.0, -0.45, -57.75)
 	moving_b.platform_size = Vector3(4.5, 0.9, MOVING_SECTION_PLATFORM_DEPTH)
-	moving_b.movement_offset = Vector3(5.0, 0.0, 0.0)
-	moving_b.period_seconds = 4.7
+	moving_b.movement_offset = Vector3(MOVING_SECTION_TRAVEL, 0.0, 0.0)
+	moving_b.period_seconds = 4.5
 	moving_b.initial_phase = 0.0
 	moving_b.visual_scene = YELLOW_ARROW_PLATFORM
 	obstacle_root.add_child(moving_b)
