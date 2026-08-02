@@ -50,10 +50,11 @@ var active_question: QuizQuestion
 var active_quiz_slot: int = 0
 var hit_cooldown_left: float = 0.0
 var pending_fall_respawn: bool = false
+var _quiz_pause_token: int = 0
+var _result_pause_token: int = 0
 
 
 func _ready() -> void:
-	get_tree().paused = false
 	_ensure_party_inputs()
 	_build_manager()
 	_build_party_world(
@@ -329,7 +330,7 @@ func _open_wave_quiz(slot: int, question: QuizQuestion) -> void:
 	active_quiz_slot = slot
 	active_question = question
 	player.set_controls_enabled(false)
-	get_tree().paused = true
+	_quiz_pause_token = get_node("/root/PauseCoordinator").acquire(self, &"quiz")
 	mode_ui.show_quiz(question, slot, 2)
 
 
@@ -344,7 +345,8 @@ func _on_quiz_choice_selected(selected_index: int) -> void:
 	active_question = null
 	active_quiz_slot = 0
 	mode_ui.hide_quiz()
-	get_tree().paused = false
+	get_node("/root/PauseCoordinator").release(_quiz_pause_token)
+	_quiz_pause_token = 0
 	_set_wave(completed_slot + 1)
 	player.set_controls_enabled(true)
 
@@ -447,7 +449,8 @@ func _fail_missing_calibration(wave_index: int) -> void:
 
 
 func _on_run_finished(result: Dictionary) -> void:
-	get_tree().paused = false
+	if _result_pause_token == 0:
+		_result_pause_token = get_node("/root/PauseCoordinator").acquire(self, &"result")
 	_set_all_hazards_inactive()
 	CampaignSession.record_level_result(LEVEL_ID, result)
 	if bool(result.get("success", false)):
@@ -478,7 +481,9 @@ func _on_restart_campaign_requested() -> void:
 
 
 func _reset_level() -> void:
-	get_tree().paused = false
+	get_node("/root/PauseCoordinator").release_owner(self)
+	_quiz_pause_token = 0
+	_result_pause_token = 0
 	current_wave = 0
 	wave_calibrated = [false, false, false]
 	quiz_triggered = [false, false]

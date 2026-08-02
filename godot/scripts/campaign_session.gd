@@ -134,7 +134,6 @@ func load_level(level_id: String) -> Error:
 	var scene_path := String(level.get("scene_path", ""))
 	if scene_path.is_empty():
 		return ERR_DOES_NOT_EXIST
-	get_tree().paused = false
 	var transition := get_node_or_null("/root/SceneTransition")
 	if transition and transition.has_method("request_scene_change"):
 		return int(transition.call(
@@ -147,7 +146,6 @@ func load_level(level_id: String) -> Error:
 
 func reset_campaign() -> void:
 	level_results.clear()
-	get_tree().paused = false
 	EXPERIMENT_EVENTS.reset_session(self)
 	campaign_reset.emit()
 

@@ -44,12 +44,10 @@ var pending_fall_respawn: bool = false
 var pending_checkpoint: RaceCheckpoint
 var pending_checkpoint_spawn := Transform3D.IDENTITY
 var pending_checkpoint_question: QuizQuestion
+var _quiz_pause_token: int = 0
+var _result_pause_token: int = 0
 
 func _ready() -> void:
-	# A previous level can finish while the global SceneTree is paused. This level
-	# owns its countdown, so always start from an active tree even when opened via
-	# a scene transition instead of directly with F6.
-	get_tree().paused = false
 	_ensure_third_person_inputs()
 	_build_manager()
 	_build_world()
@@ -373,7 +371,7 @@ func _on_checkpoint_activated(checkpoint_index: int, spawn_transform: Transform3
 		_clear_pending_checkpoint()
 		return
 	player.set_controls_enabled(false)
-	get_tree().paused = true
+	_quiz_pause_token = get_node("/root/PauseCoordinator").acquire(self, &"quiz")
 	race_ui.show_quiz(question, checkpoint_index)
 
 
@@ -394,7 +392,8 @@ func _on_quiz_choice_selected(selected_index: int) -> void:
 		pending_checkpoint.set_activated()
 	race_ui.hide_quiz()
 	_clear_pending_checkpoint()
-	get_tree().paused = false
+	get_node("/root/PauseCoordinator").release(_quiz_pause_token)
+	_quiz_pause_token = 0
 	player.set_controls_enabled(race_manager.is_running())
 
 
@@ -413,7 +412,8 @@ func _on_finish_body_entered(body: Node3D) -> void:
 
 
 func _on_race_finished(result: Dictionary) -> void:
-	get_tree().paused = false
+	if _result_pause_token == 0:
+		_result_pause_token = get_node("/root/PauseCoordinator").acquire(self, &"result")
 	CampaignSession.record_level_result("spinner_race", result)
 	if bool(result.get("success", false)):
 		player.play_celebration()
@@ -436,7 +436,9 @@ func _on_next_level_requested() -> void:
 
 
 func _reset_race() -> void:
-	get_tree().paused = false
+	get_node("/root/PauseCoordinator").release_owner(self)
+	_quiz_pause_token = 0
+	_result_pause_token = 0
 	finish_triggered = false
 	pending_fall_respawn = false
 	_clear_pending_checkpoint()

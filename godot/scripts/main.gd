@@ -267,9 +267,6 @@ func _on_restart_requested() -> void:
 func _on_next_level_requested() -> void:
 	if game_manager.state != GameManager.GameState.FINISHED:
 		return
-	# The quiz/result screen intentionally pauses the first level. SceneTree pause
-	# is global and survives a scene change, so release it before loading level 2.
-	get_tree().paused = false
 	var change_error := CampaignSession.load_next_level("ai_training_ground")
 	if change_error != OK:
 		push_error("Unable to open spinner_race: %s" % error_string(change_error))

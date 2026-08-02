@@ -32,6 +32,7 @@ $tests = @(
     "signal_bomb_survival_smoke_test.gd",
     "obstacle_contact_smoke_test.gd",
     "level_flow_smoke_test.gd",
+    "pause_coordinator_smoke_test.gd",
     "experiment_session_smoke_test.gd"
 )
 

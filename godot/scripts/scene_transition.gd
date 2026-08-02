@@ -22,6 +22,8 @@ var _transition_tween: Tween
 var _milestone_tween: Tween
 var _transitioning: bool = false
 var _headless: bool = false
+var _transition_pause_token: int = 0
+var _initial_reveal_pause_token: int = 0
 
 
 func _ready() -> void:
@@ -45,11 +47,15 @@ func request_scene_change(scene_path: String, level_title: String = "") -> Error
 		return ERR_BUSY
 	if not ResourceLoader.exists(scene_path, "PackedScene"):
 		return ERR_FILE_NOT_FOUND
-	if _headless:
-		get_tree().paused = false
-		return get_tree().change_scene_to_file(scene_path)
 	_transitioning = true
-	get_tree().paused = true
+	_transition_pause_token = get_node("/root/PauseCoordinator").acquire(self, &"scene_transition")
+	if _headless:
+		var change_error := get_tree().change_scene_to_file(scene_path)
+		if change_error != OK:
+			_finish_transition_request()
+			return change_error
+		call_deferred("_finish_headless_transition", scene_path)
+		return OK
 	transition_started.emit(scene_path)
 	_set_transition_copy(scene_path, level_title, "下一站")
 	transition_overlay.visible = true
@@ -95,8 +101,7 @@ func _play_initial_reveal() -> void:
 	if get_tree().current_scene and not get_tree().current_scene.scene_file_path.is_empty():
 		scene_path = get_tree().current_scene.scene_file_path
 	_set_transition_copy(scene_path, "", "AI训练场大挑战")
-	var destination_pause := get_tree().paused
-	get_tree().paused = true
+	_initial_reveal_pause_token = get_node("/root/PauseCoordinator").acquire(self, &"initial_reveal")
 	_play_audio(arrival_audio)
 	_transition_tween = create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	_transition_tween.tween_interval(0.24)
@@ -105,22 +110,22 @@ func _play_initial_reveal() -> void:
 	await _transition_tween.finished
 	transition_overlay.visible = false
 	transition_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	get_tree().paused = destination_pause
+	get_node("/root/PauseCoordinator").release(_initial_reveal_pause_token)
+	_initial_reveal_pause_token = 0
 
 
 func _swap_scene(scene_path: String) -> void:
-	get_tree().paused = false
 	var change_error := get_tree().change_scene_to_file(scene_path)
 	if change_error != OK:
 		push_error("Scene transition failed for %s: %s" % [scene_path, error_string(change_error)])
 		_transitioning = false
 		transition_overlay.visible = false
 		transition_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		get_node("/root/PauseCoordinator").release(_transition_pause_token)
+		_transition_pause_token = 0
 		return
 	await get_tree().process_frame
 	await get_tree().process_frame
-	var destination_pause := get_tree().paused
-	get_tree().paused = true
 	_set_transition_copy(scene_path, "", "准备出发")
 	_play_audio(arrival_audio)
 	_transition_tween = create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
@@ -131,8 +136,22 @@ func _swap_scene(scene_path: String) -> void:
 	transition_overlay.visible = false
 	transition_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_transitioning = false
-	get_tree().paused = destination_pause
+	get_node("/root/PauseCoordinator").release(_transition_pause_token)
+	_transition_pause_token = 0
 	transition_finished.emit(scene_path)
+
+
+func _finish_headless_transition(scene_path: String) -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_finish_transition_request()
+	transition_finished.emit(scene_path)
+
+
+func _finish_transition_request() -> void:
+	_transitioning = false
+	get_node("/root/PauseCoordinator").release(_transition_pause_token)
+	_transition_pause_token = 0
 
 
 func _set_transition_copy(scene_path: String, override_title: String, kicker_text: String) -> void:

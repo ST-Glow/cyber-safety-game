@@ -48,10 +48,11 @@ var active_question: QuizQuestion
 var active_quiz_slot: int = 0
 var quiz_triggered: Array[bool] = [false, false]
 var pending_fall_respawn: bool = false
+var _quiz_pause_token: int = 0
+var _result_pause_token: int = 0
 
 
 func _ready() -> void:
-	get_tree().paused = false
 	_ensure_party_inputs()
 	_build_manager()
 	_build_party_world(
@@ -297,7 +298,7 @@ func _open_quiz(slot: int, question: QuizQuestion) -> void:
 	active_quiz_slot = slot
 	active_question = question
 	player.set_controls_enabled(false)
-	get_tree().paused = true
+	_quiz_pause_token = get_node("/root/PauseCoordinator").acquire(self, &"quiz")
 	mode_ui.show_quiz(question, slot, 2)
 
 
@@ -312,7 +313,8 @@ func _on_quiz_choice_selected(selected_index: int) -> void:
 	active_question = null
 	active_quiz_slot = 0
 	mode_ui.hide_quiz()
-	get_tree().paused = false
+	get_node("/root/PauseCoordinator").release(_quiz_pause_token)
+	_quiz_pause_token = 0
 	if completed_slot == 2:
 		player.set_controls_enabled(false)
 		mode_manager.finish(true, _get_mode_metrics())
@@ -345,7 +347,8 @@ func _on_time_expired() -> void:
 
 
 func _on_run_finished(result: Dictionary) -> void:
-	get_tree().paused = false
+	if _result_pause_token == 0:
+		_result_pause_token = get_node("/root/PauseCoordinator").acquire(self, &"result")
 	_set_moving_platforms_active(false)
 	CampaignSession.record_level_result(LEVEL_ID, result)
 	if bool(result.get("success", false)):
@@ -375,7 +378,9 @@ func _on_next_level_requested() -> void:
 
 
 func _reset_level() -> void:
-	get_tree().paused = false
+	get_node("/root/PauseCoordinator").release_owner(self)
+	_quiz_pause_token = 0
+	_result_pause_token = 0
 	collected_count = 0
 	active_question = null
 	active_quiz_slot = 0

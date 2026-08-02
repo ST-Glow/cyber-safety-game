@@ -2,7 +2,7 @@
 
 ## Reproducible commands
 
-Run the seven functional smoke tests from the `godot` directory:
+Run the functional smoke suite from the `godot` directory:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\run_smoke_tests.ps1

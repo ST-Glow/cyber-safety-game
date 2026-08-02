@@ -31,6 +31,10 @@ var assistant_open: bool = false
 var knowledge_score: int = 0
 var course_score: int = 25
 var time_score: int = 15
+var _ready_pause_token: int = 0
+var _assistant_pause_token: int = 0
+var _quiz_pause_token: int = 0
+var _result_pause_token: int = 0
 
 
 func _ready() -> void:
@@ -44,6 +48,7 @@ func _process(delta: float) -> void:
 
 
 func prepare_run() -> void:
+	_release_all_pause_requests()
 	state = GameState.READY
 	elapsed_seconds = 0.0
 	obstacle_hits = 0
@@ -55,7 +60,7 @@ func prepare_run() -> void:
 	course_score = 25
 	time_score = 15
 	assistant_open = false
-	get_tree().paused = true
+	_ready_pause_token = get_node("/root/PauseCoordinator").acquire(self, &"ready")
 	state_changed.emit(state)
 	EXPERIMENT_EVENTS.record(self, "level_prepared", "ai_training_ground")
 
@@ -64,7 +69,8 @@ func start_run() -> void:
 	if state != GameState.READY:
 		return
 	state = GameState.RUNNING
-	get_tree().paused = false
+	get_node("/root/PauseCoordinator").release(_ready_pause_token)
+	_ready_pause_token = 0
 	state_changed.emit(state)
 	run_started.emit()
 	EXPERIMENT_EVENTS.record(self, "run_started", "ai_training_ground")
@@ -127,7 +133,7 @@ func open_quiz() -> bool:
 	if state != GameState.RUNNING:
 		return false
 	state = GameState.QUIZ
-	get_tree().paused = true
+	_quiz_pause_token = get_node("/root/PauseCoordinator").acquire(self, &"quiz")
 	state_changed.emit(state)
 	EXPERIMENT_EVENTS.record(self, "quiz_opened", "ai_training_ground", {"quiz_slot": 1})
 	return true
@@ -154,11 +160,14 @@ func set_assistant_open(value: bool) -> void:
 	if state in [GameState.QUIZ, GameState.FINISHED]:
 		return
 	assistant_open = value
-	get_tree().paused = value or state == GameState.READY
+	if value and _assistant_pause_token == 0:
+		_assistant_pause_token = get_node("/root/PauseCoordinator").acquire(self, &"assistant")
+	elif not value and _assistant_pause_token != 0:
+		get_node("/root/PauseCoordinator").release(_assistant_pause_token)
+		_assistant_pause_token = 0
 
 
 func restart_to_ready() -> void:
-	get_tree().paused = false
 	prepare_run()
 
 
@@ -192,7 +201,9 @@ func _finish_run() -> void:
 	score = knowledge_score + course_score + time_score
 	stars = 3 if score >= 47 else (2 if score >= 36 else 1)
 	state = GameState.FINISHED
-	get_tree().paused = true
+	_result_pause_token = get_node("/root/PauseCoordinator").acquire(self, &"result")
+	get_node("/root/PauseCoordinator").release(_quiz_pause_token)
+	_quiz_pause_token = 0
 	state_changed.emit(state)
 	var result := get_result()
 	EXPERIMENT_EVENTS.record(self, "run_completed", "ai_training_ground", result)
@@ -212,3 +223,11 @@ func _get_time_score() -> int:
 	if elapsed_seconds <= 120.0:
 		return 10
 	return 5
+
+
+func _release_all_pause_requests() -> void:
+	get_node("/root/PauseCoordinator").release_owner(self)
+	_ready_pause_token = 0
+	_assistant_pause_token = 0
+	_quiz_pause_token = 0
+	_result_pause_token = 0
