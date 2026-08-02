@@ -298,6 +298,7 @@ func _build_ui() -> void:
 	mode_ui.objective_text = "每20秒到达发光信号区完成校准，同时躲避机关并坚持60秒"
 	mode_ui.final_level = true
 	add_child(mode_ui)
+	mode_ui.configure_result_action(CampaignSession.is_campaign_run())
 
 
 func _connect_signals() -> void:
@@ -467,7 +468,8 @@ func _on_run_finished(result: Dictionary) -> void:
 	var failure_reason := String(result.get("failure_reason", ""))
 	if not failure_reason.is_empty():
 		metrics += "\n失败原因：%s" % failure_reason
-	mode_ui.show_result(result, metrics, CampaignSession.get_campaign_summary())
+	var campaign_summary := CampaignSession.get_campaign_summary() if CampaignSession.is_campaign_run() else {}
+	mode_ui.show_result(result, metrics, campaign_summary)
 
 
 func _on_restart_requested() -> void:
@@ -475,9 +477,9 @@ func _on_restart_requested() -> void:
 
 
 func _on_restart_campaign_requested() -> void:
-	var change_error := CampaignSession.restart_campaign()
+	var change_error := CampaignSession.restart_campaign() if CampaignSession.is_campaign_run() else CampaignSession.return_to_menu()
 	if change_error != OK:
-		push_error("Unable to restart campaign: %s" % error_string(change_error))
+		push_error("Unable to leave signal_bomb_survival: %s" % error_string(change_error))
 
 
 func _reset_level() -> void:

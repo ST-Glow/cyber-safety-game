@@ -238,6 +238,7 @@ func _build_ui() -> void:
 	ui = UI_SCRIPT.new() as GameUI
 	ui.name = "GameUI"
 	add_child(ui)
+	ui.configure_result_action(CampaignSession.is_campaign_run())
 	ui.start_requested.connect(_on_start_requested)
 	ui.restart_requested.connect(_on_restart_requested)
 	ui.next_level_requested.connect(_on_next_level_requested)
@@ -267,9 +268,9 @@ func _on_restart_requested() -> void:
 func _on_next_level_requested() -> void:
 	if game_manager.state != GameManager.GameState.FINISHED:
 		return
-	var change_error := CampaignSession.load_next_level("ai_training_ground")
+	var change_error := CampaignSession.load_next_level("ai_training_ground") if CampaignSession.is_campaign_run() else CampaignSession.return_to_menu()
 	if change_error != OK:
-		push_error("Unable to open spinner_race: %s" % error_string(change_error))
+		push_error("Unable to leave ai_training_ground: %s" % error_string(change_error))
 
 
 func _on_assistant_toggled(open: bool) -> void:

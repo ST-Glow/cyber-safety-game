@@ -50,6 +50,7 @@ var _last_hud_state: String = ""
 var _last_hud_primary: String = ""
 var _last_hud_secondary: String = ""
 var _last_hud_progress: int = -1
+var _campaign_mode: bool = false
 
 
 func _ready() -> void:
@@ -93,6 +94,14 @@ func reset_view(time_limit: float) -> void:
 	countdown_label.text = "3"
 	_last_countdown_sound = -1
 	update_hud(time_limit, "等待出发", "0", "0", 0.0)
+
+
+func configure_result_action(campaign_mode: bool) -> void:
+	_campaign_mode = campaign_mode
+	if next_button:
+		next_button.text = "进入下一关" if campaign_mode else "返回主菜单"
+	if restart_campaign_button:
+		restart_campaign_button.text = "重新挑战全部" if campaign_mode else "返回主菜单"
 
 
 func update_hud(time_left: float, state_text: String, primary_text: String, secondary_text: String, progress: float) -> void:
@@ -176,7 +185,7 @@ func show_result(result: Dictionary, metrics_text: String, campaign_summary: Dic
 	quiz_overlay.visible = false
 	countdown_panel.visible = false
 	_quiz_accepts_input = false
-	if final_level and success:
+	if final_level and success and _campaign_mode:
 		result_title.text = "全部训练完成！"
 		result_title.modulate = Color("73f2bd")
 		result_metrics.text = scored_metrics + "\n\n" + _format_campaign_summary(campaign_summary)

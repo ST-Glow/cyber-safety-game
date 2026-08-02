@@ -5,7 +5,13 @@ const EXPERIMENT_EVENTS := preload("res://scripts/experiment_event_bridge.gd")
 signal level_result_recorded(level_id: String, result: Dictionary)
 signal campaign_reset
 
+enum RunMode {
+	SINGLE_LEVEL,
+	CAMPAIGN,
+}
+
 const FIRST_LEVEL_ID := "ai_training_ground"
+const MAIN_MENU_SCENE := "res://scenes/main_menu.tscn"
 const LEVELS: Array[Dictionary] = [
 	{
 		"id": "ai_training_ground",
@@ -46,6 +52,8 @@ const LEVELS: Array[Dictionary] = [
 ]
 
 var level_results: Dictionary = {}
+var run_mode: RunMode = RunMode.SINGLE_LEVEL
+var active_level_id: String = ""
 
 
 func _ready() -> void:
@@ -117,7 +125,36 @@ func record_level_result(level_id: String, result: Dictionary) -> void:
 	level_result_recorded.emit(level_id, stored_result.duplicate(true))
 
 
+func is_campaign_run() -> bool:
+	return run_mode == RunMode.CAMPAIGN
+
+
+func start_single_level(level_id: String) -> Error:
+	if get_level_by_id(level_id).is_empty():
+		return ERR_DOES_NOT_EXIST
+	run_mode = RunMode.SINGLE_LEVEL
+	active_level_id = level_id
+	reset_campaign()
+	return load_level(level_id)
+
+
+func start_campaign() -> Error:
+	run_mode = RunMode.CAMPAIGN
+	active_level_id = FIRST_LEVEL_ID
+	reset_campaign()
+	return load_level(FIRST_LEVEL_ID)
+
+
+func return_to_menu() -> Error:
+	run_mode = RunMode.SINGLE_LEVEL
+	active_level_id = ""
+	reset_campaign()
+	return _change_scene(MAIN_MENU_SCENE, "AI训练场大挑战")
+
+
 func load_next_level(current_level_id: String) -> Error:
+	if not is_campaign_run():
+		return ERR_UNAVAILABLE
 	var ordered_levels := get_levels_in_menu_order()
 	var current_index := -1
 	for index in range(ordered_levels.size()):
@@ -134,12 +171,17 @@ func load_level(level_id: String) -> Error:
 	var scene_path := String(level.get("scene_path", ""))
 	if scene_path.is_empty():
 		return ERR_DOES_NOT_EXIST
+	active_level_id = level_id
+	return _change_scene(scene_path, String(level.get("title", "AI训练场")))
+
+
+func _change_scene(scene_path: String, title: String) -> Error:
 	var transition := get_node_or_null("/root/SceneTransition")
 	if transition and transition.has_method("request_scene_change"):
 		return int(transition.call(
 			"request_scene_change",
 			scene_path,
-			String(level.get("title", "AI训练场"))
+			title
 		))
 	return get_tree().change_scene_to_file(scene_path)
 
@@ -151,6 +193,8 @@ func reset_campaign() -> void:
 
 
 func restart_campaign() -> Error:
+	run_mode = RunMode.CAMPAIGN
+	active_level_id = FIRST_LEVEL_ID
 	reset_campaign()
 	return load_level(FIRST_LEVEL_ID)
 

@@ -285,6 +285,7 @@ func _build_ui() -> void:
 	race_ui = RACE_UI_SCRIPT.new() as SpinnerRaceUI
 	race_ui.name = "RaceUI"
 	add_child(race_ui)
+	race_ui.configure_result_action(CampaignSession.is_campaign_run())
 	race_ui.restart_requested.connect(_on_restart_requested)
 	race_ui.next_level_requested.connect(_on_next_level_requested)
 	race_ui.quiz_choice_selected.connect(_on_quiz_choice_selected)
@@ -430,9 +431,9 @@ func _on_restart_requested() -> void:
 func _on_next_level_requested() -> void:
 	if race_manager.state != SpinnerRaceManager.RaceState.FINISHED:
 		return
-	var change_error := CampaignSession.load_next_level("spinner_race")
+	var change_error := CampaignSession.load_next_level("spinner_race") if CampaignSession.is_campaign_run() else CampaignSession.return_to_menu()
 	if change_error != OK:
-		push_error("Unable to open data_chip_hunt: %s" % error_string(change_error))
+		push_error("Unable to leave spinner_race: %s" % error_string(change_error))
 
 
 func _reset_race() -> void:

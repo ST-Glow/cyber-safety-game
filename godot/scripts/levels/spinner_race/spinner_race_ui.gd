@@ -92,6 +92,11 @@ func reset_view() -> void:
 	update_race(3.0, 90.0, 0, 0, SpinnerRaceManager.RaceState.COUNTDOWN, 0.0)
 
 
+func configure_result_action(campaign_mode: bool) -> void:
+	if next_button:
+		next_button.text = "进入下一关" if campaign_mode else "返回主菜单"
+
+
 func show_countdown(seconds_left: int) -> void:
 	if seconds_left == _last_countdown_sound:
 		return

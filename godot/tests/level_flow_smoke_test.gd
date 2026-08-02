@@ -35,18 +35,20 @@ func _run_test() -> void:
 			scene_transition.call("_set_transition_copy", String(spinner_metadata.get("scene_path", "")), "", "")
 			var transition_title := scene_transition.get("transition_title") as Label
 			_expect(transition_title != null and transition_title.text == String(spinner_metadata.get("title", "")), "scene transition reads copy from campaign metadata")
-		campaign.call("reset_campaign")
-	var main_scene := load("res://scenes/main.tscn") as PackedScene
-	_expect(main_scene != null, "main scene loads")
-	if main_scene == null:
+		var campaign_start_error := int(campaign.call("start_campaign"))
+		_expect(campaign_start_error == OK, "campaign starts through the public run-mode API")
+	if campaign == null:
 		quit(1)
 		return
-
-	var first_level := main_scene.instantiate()
-	root.add_child(first_level)
-	current_scene = first_level
+	await process_frame
 	await process_frame
 	await physics_frame
+	var first_level := current_scene
+	_expect(first_level != null and first_level.name == "AITrainingGround", "campaign opens the first registered level")
+	_expect(bool(campaign.call("is_campaign_run")), "campaign run mode remains active")
+	if first_level == null:
+		quit(1)
+		return
 
 	var manager := first_level.get_node_or_null("GameManager") as GameManager
 	var player := first_level.get_node_or_null("RangerPlayer") as PlayerController

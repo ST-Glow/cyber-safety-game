@@ -252,6 +252,7 @@ func _build_ui() -> void:
 	mode_ui.mode_title = "AI芯片收集赛"
 	mode_ui.objective_text = "在75秒内探索三条路线，收集全部12枚AI芯片"
 	add_child(mode_ui)
+	mode_ui.configure_result_action(CampaignSession.is_campaign_run())
 
 
 func _connect_signals() -> void:
@@ -372,9 +373,9 @@ func _on_restart_requested() -> void:
 func _on_next_level_requested() -> void:
 	if mode_manager.state != PartyModeManager.RunState.FINISHED:
 		return
-	var change_error := CampaignSession.load_next_level(LEVEL_ID)
+	var change_error := CampaignSession.load_next_level(LEVEL_ID) if CampaignSession.is_campaign_run() else CampaignSession.return_to_menu()
 	if change_error != OK:
-		push_error("Unable to open signal_bomb_survival: %s" % error_string(change_error))
+		push_error("Unable to leave data_chip_hunt: %s" % error_string(change_error))
 
 
 func _reset_level() -> void:

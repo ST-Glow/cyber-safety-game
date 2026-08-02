@@ -30,6 +30,7 @@ var option_buttons: Array[Button] = []
 var result_stars: Label
 var result_score: Label
 var result_metrics: Label
+var next_button: Button
 var click_audio: AudioStreamPlayer
 var confirm_audio: AudioStreamPlayer
 var error_audio: AudioStreamPlayer
@@ -89,6 +90,11 @@ func show_running() -> void:
 	assistant_button.visible = true
 	_assistant_open = false
 	_quiz_accepts_input = false
+
+
+func configure_result_action(campaign_mode: bool) -> void:
+	if next_button:
+		next_button.text = "进入下一关" if campaign_mode else "返回主菜单"
 
 
 func update_hud(progress: float, elapsed: float, score: int, dash_cooldown_left: float, dash_cooldown: float) -> void:
@@ -365,7 +371,7 @@ func _build_result_overlay() -> void:
 	result_metrics.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	result_metrics.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	metrics_margin.add_child(result_metrics)
-	var next_button := _make_button("进入下一关", Color("ffd85a"), Color("30244f"), 22)
+	next_button = _make_button("进入下一关", Color("ffd85a"), Color("30244f"), 22)
 	next_button.custom_minimum_size = Vector2(260.0, 62.0)
 	next_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	next_button.pressed.connect(_on_next_level_pressed)
