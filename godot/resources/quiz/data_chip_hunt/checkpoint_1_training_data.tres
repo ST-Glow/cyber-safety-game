@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="QuizQuestion" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/quiz_question.gd" id="1_quiz"]
+
+[resource]
+script = ExtResource("1_quiz")
+title = "芯片检查点 1 · 训练数据"
+prompt = "要训练一个区分猫和狗图片的人工智能，哪组数据更合适？"
+options = PackedStringArray("大量清晰且正确标注为猫或狗的图片", "只有几张模糊并且没有标注的图片", "与猫和狗无关的天气数字")
+correct_index = 0
+explanation = "训练数据应与任务相关，数量较充足，而且标注可靠。"

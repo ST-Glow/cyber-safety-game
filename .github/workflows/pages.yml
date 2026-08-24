@@ -1,11 +1,12 @@
-name: Deploy web game to GitHub Pages
+name: Test and deploy Godot study to GitHub Pages
 
 on:
   push:
     branches: [main]
     paths:
-      - "web-game/**"
-      - "tools/build-pages.cjs"
+      - "godot/**"
+      - "cloud/aliyun-upload-api/**"
+      - "tools/generate-student-links.cjs"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -15,23 +16,84 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: godot-pages
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  test-build-deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    env:
+      GODOT_VERSION: 4.7.1
+      PRIMARY_API_BASE_URL: ${{ vars.PRIMARY_API_BASE_URL }}
+      FALLBACK_API_BASE_URL: ${{ vars.FALLBACK_API_BASE_URL }}
+      STUDY_VERSION: ${{ vars.GODOT_STUDY_VERSION || 'godot-v1' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Build static site
-        env:
-          UPLOAD_API_BASE_URL: ${{ vars.UPLOAD_API_BASE_URL }}
-        run: node tools/build-pages.cjs
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: cloud/aliyun-upload-api/package-lock.json
+
+      - name: Install backend and browser SDK dependencies
+        working-directory: cloud/aliyun-upload-api
+        run: npm ci
+
+      - name: Run backend tests
+        working-directory: cloud/aliyun-upload-api
+        run: npm test
+
+      - name: Install Godot 4.7.1 and export templates
+        shell: bash
+        run: |
+          mkdir -p .godot-bin "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          curl --fail --location --retry 3 \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip" \
+            --output .godot-bin/godot.zip
+          unzip -q .godot-bin/godot.zip -d .godot-bin
+          mv ".godot-bin/Godot_v${GODOT_VERSION}-stable_linux.x86_64" .godot-bin/godot
+          chmod +x .godot-bin/godot
+          curl --fail --location --retry 3 \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz" \
+            --output .godot-bin/templates.tpz
+          unzip -q .godot-bin/templates.tpz -d .godot-bin/templates
+          cp -R .godot-bin/templates/templates/. "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/"
+
+      - name: Run Godot regression tests
+        shell: pwsh
+        run: ./godot/tests/run_smoke_tests.ps1 -GodotExe "$PWD/.godot-bin/godot"
+
+      - name: Validate production deployment variables
+        shell: bash
+        run: |
+          test -n "$PRIMARY_API_BASE_URL"
+          test -n "$FALLBACK_API_BASE_URL"
+          test "$PRIMARY_API_BASE_URL" != "$FALLBACK_API_BASE_URL"
+
+      - name: Export production Godot Web build
+        shell: pwsh
+        run: >-
+          ./godot/tools/export_web.ps1
+          -GodotExe "$PWD/.godot-bin/godot"
+          -PrimaryApiBaseUrl "$env:PRIMARY_API_BASE_URL"
+          -FallbackApiBaseUrl "$env:FALLBACK_API_BASE_URL"
+          -StudyVersion "$env:STUDY_VERSION"
+          -BuildVersion "$env:GITHUB_SHA"
+          -ProductionMode
+
+      - name: Run static release checks
+        shell: bash
+        run: |
+          node --check godot/build/web/experiment-bridge.js
+          test -f godot/build/web/aliyun-oss-sdk.min.js
+          ! rg "cdn\.jsdelivr|unpkg\.com" godot/build/web/index.html
+          rg "productionMode.:true" godot/build/web/index.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
@@ -39,7 +101,7 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: godot/build/web
 
       - name: Deploy Pages
         id: deployment

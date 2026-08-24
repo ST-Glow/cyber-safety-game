@@ -4,6 +4,8 @@ const crypto = require("node:crypto");
 
 const SAFE_ID = /^[A-Za-z0-9_-]{1,48}$/;
 const SAFE_CONVERSATION_ID = /^[A-Za-z0-9_-]{1,128}$/;
+const TICKET_VERSION = 2;
+const STUDY_CONDITIONS = new Set(["active", "passive"]);
 
 function assertSafeId(value, field) {
   if (!SAFE_ID.test(String(value || ""))) {
@@ -25,12 +27,15 @@ function sign(encodedPayload, secret) {
 function createTicket(claims, secret) {
   if (!secret || secret.length < 16) throw new Error("link_secret_too_short");
   const payload = {
-    v: 1,
+    v: TICKET_VERSION,
+    study_version: assertSafeId(claims.study_version, "study_version"),
+    condition: String(claims.condition || ""),
     class_id: assertSafeId(claims.class_id, "class_id"),
     student_code: assertSafeId(claims.student_code, "student_code"),
     upload_id: assertSafeId(claims.upload_id, "upload_id"),
     exp: Number(claims.exp),
   };
+  if (!STUDY_CONDITIONS.has(payload.condition)) throw new Error("condition_invalid");
   if (!Number.isFinite(payload.exp)) throw new Error("expiry_invalid");
   const encoded = encodePayload(payload);
   return `${encoded}.${sign(encoded, secret)}`;
@@ -52,7 +57,9 @@ function verifyTicket(ticket, secret, nowSeconds = Math.floor(Date.now() / 1000)
   } catch {
     throw new Error("ticket_payload_invalid");
   }
-  if (payload.v !== 1) throw new Error("ticket_version_unsupported");
+  if (payload.v !== TICKET_VERSION) throw new Error("ticket_version_unsupported");
+  payload.study_version = assertSafeId(payload.study_version, "study_version");
+  if (!STUDY_CONDITIONS.has(String(payload.condition || ""))) throw new Error("condition_invalid");
   payload.class_id = assertSafeId(payload.class_id, "class_id");
   payload.student_code = assertSafeId(payload.student_code, "student_code");
   payload.upload_id = assertSafeId(payload.upload_id, "upload_id");
@@ -68,6 +75,7 @@ function createAgentSession(claims, secret) {
     v: 1,
     kind: "coze_conversation",
     upload_id: assertSafeId(claims.upload_id, "upload_id"),
+    level_id: assertSafeId(claims.level_id, "level_id"),
     conversation_id: conversationId,
     exp: Number(claims.exp),
   };
@@ -76,7 +84,7 @@ function createAgentSession(claims, secret) {
   return `${encoded}.${sign(encoded, secret)}`;
 }
 
-function verifyAgentSession(session, secret, expectedUploadId, nowSeconds = Math.floor(Date.now() / 1000)) {
+function verifyAgentSession(session, secret, expectedUploadId, expectedLevelId, nowSeconds = Math.floor(Date.now() / 1000)) {
   if (!secret || secret.length < 16) throw new Error("link_secret_not_configured");
   const [encoded, providedSignature, extra] = String(session || "").split(".");
   if (!encoded || !providedSignature || extra) throw new Error("agent_session_malformed");
@@ -95,6 +103,8 @@ function verifyAgentSession(session, secret, expectedUploadId, nowSeconds = Math
   if (payload.v !== 1 || payload.kind !== "coze_conversation") throw new Error("agent_session_version_unsupported");
   payload.upload_id = assertSafeId(payload.upload_id, "upload_id");
   if (payload.upload_id !== expectedUploadId) throw new Error("agent_session_owner_mismatch");
+  payload.level_id = assertSafeId(payload.level_id, "level_id");
+  if (payload.level_id !== expectedLevelId) throw new Error("agent_session_level_mismatch");
   if (!SAFE_CONVERSATION_ID.test(String(payload.conversation_id || ""))) throw new Error("conversation_id_invalid");
   if (!Number.isFinite(payload.exp) || payload.exp < nowSeconds) throw new Error("agent_session_expired");
   return payload;
@@ -110,6 +120,7 @@ function createAgentPollToken(claims, secret) {
     v: 1,
     kind: "coze_chat_poll",
     upload_id: assertSafeId(claims.upload_id, "upload_id"),
+    level_id: assertSafeId(claims.level_id, "level_id"),
     conversation_id: conversationId,
     chat_id: chatId,
     exp: Number(claims.exp),
@@ -119,7 +130,7 @@ function createAgentPollToken(claims, secret) {
   return `${encoded}.${sign(encoded, secret)}`;
 }
 
-function verifyAgentPollToken(token, secret, expectedUploadId, nowSeconds = Math.floor(Date.now() / 1000)) {
+function verifyAgentPollToken(token, secret, expectedUploadId, expectedLevelId, nowSeconds = Math.floor(Date.now() / 1000)) {
   if (!secret || secret.length < 16) throw new Error("link_secret_not_configured");
   const [encoded, providedSignature, extra] = String(token || "").split(".");
   if (!encoded || !providedSignature || extra) throw new Error("agent_poll_malformed");
@@ -138,6 +149,8 @@ function verifyAgentPollToken(token, secret, expectedUploadId, nowSeconds = Math
   if (payload.v !== 1 || payload.kind !== "coze_chat_poll") throw new Error("agent_poll_version_unsupported");
   payload.upload_id = assertSafeId(payload.upload_id, "upload_id");
   if (payload.upload_id !== expectedUploadId) throw new Error("agent_poll_owner_mismatch");
+  payload.level_id = assertSafeId(payload.level_id, "level_id");
+  if (payload.level_id !== expectedLevelId) throw new Error("agent_poll_level_mismatch");
   if (!SAFE_CONVERSATION_ID.test(String(payload.conversation_id || ""))) throw new Error("conversation_id_invalid");
   if (!SAFE_CONVERSATION_ID.test(String(payload.chat_id || ""))) throw new Error("chat_id_invalid");
   if (!Number.isFinite(payload.exp) || payload.exp < nowSeconds) throw new Error("agent_poll_expired");
@@ -152,4 +165,6 @@ module.exports = {
   createAgentPollToken,
   verifyAgentPollToken,
   assertSafeId,
+  TICKET_VERSION,
+  STUDY_CONDITIONS,
 };

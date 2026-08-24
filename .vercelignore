@@ -1,0 +1,21 @@
+# The linked Vercel project uses cloud/aliyun-upload-api as its Root Directory.
+# Keep CLI deployments small and exclude Godot/Web build assets.
+.agents/
+.github/
+.npm-cache/
+Assets/
+dist/
+generated/
+godot/
+Library/
+Logs/
+mock-oss/
+Packages/
+ProjectSettings/
+test-runtime/
+tools/
+UserSettings/
+web-game/
+_site/
+*.md
+.env*

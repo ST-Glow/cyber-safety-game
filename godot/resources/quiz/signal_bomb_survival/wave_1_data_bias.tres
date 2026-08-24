@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="QuizQuestion" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/quiz_question.gd" id="1_quiz"]
+
+[resource]
+script = ExtResource("1_quiz")
+title = "生存检查点 1 · 数据偏差"
+prompt = "如果训练数据主要来自一种人群，人工智能的结果可能怎样？"
+options = PackedStringArray("对其他人群不够准确，甚至产生不公平结果", "自动对所有人群保持完全相同的准确率", "数据来源越单一，得到的结论一定越全面")
+correct_index = 0
+explanation = "训练数据缺少代表性时，人工智能可能学到偏差，对未被充分覆盖的人群表现较差。"

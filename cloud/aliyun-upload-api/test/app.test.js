@@ -7,7 +7,34 @@ const os = require("node:os");
 const path = require("node:path");
 const { createTicket } = require("../src/auth");
 const { createApp } = require("../src/create-app");
-const { createCloudAdapter } = require("../src/cloud");
+const { createCloudAdapter, objectNames, rolePolicy } = require("../src/cloud");
+
+const TEST_LEVEL_PROMPTS = Object.freeze({
+  ai_training_ground: "第一关隐藏教学档案",
+  spinner_race: "第二关隐藏教学档案",
+  data_chip_hunt: "第三关隐藏教学档案",
+  signal_bomb_survival: "第四关隐藏教学档案",
+});
+const STUDY_CLAIMS = Object.freeze({
+  study_version: "godot-v1",
+  condition: "active",
+});
+
+test("browser upload policy supports resumable multipart recording without manifest write access", () => {
+  const objects = objectNames({
+    ...STUDY_CLAIMS,
+    class_id: "CLASS-A",
+    student_code: "S001",
+    upload_id: "upload_001",
+  }, "webm", true);
+  const policy = JSON.parse(rolePolicy("cyber-game", objects));
+  const actions = policy.Statement[0].Action;
+  assert.ok(actions.includes("oss:InitiateMultipartUpload"));
+  assert.ok(actions.includes("oss:UploadPart"));
+  assert.ok(actions.includes("oss:CompleteMultipartUpload"));
+  assert.ok(actions.includes("oss:AbortMultipartUpload"));
+  assert.ok(policy.Statement[0].Resource.every((value) => !value.endsWith("/manifest.json")));
+});
 
 test("mock API accepts three files and writes a manifest", async (context) => {
   const mockRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cyber-upload-"));
@@ -28,6 +55,7 @@ test("mock API accepts three files and writes a manifest", async (context) => {
   const base = `http://127.0.0.1:${server.address().port}`;
   config.publicBaseUrl = base;
   const ticket = createTicket({
+    ...STUDY_CLAIMS,
     class_id: "CLASS-5A",
     student_code: "S001",
     upload_id: "upload_001",
@@ -71,8 +99,11 @@ test("mock API accepts three files and writes a manifest", async (context) => {
   assert.equal(completeResponse.status, 200);
   const completed = await completeResponse.json();
   assert.equal(completed.status, "complete");
-  const manifest = JSON.parse(await fs.readFile(path.join(mockRoot, "sessions", "CLASS-5A", "S001", "upload_001", "manifest.json"), "utf8"));
+  const manifest = JSON.parse(await fs.readFile(path.join(
+    mockRoot, "studies", "godot-v1", "CLASS-5A", "active", "S001", "upload_001", "manifest.json"
+  ), "utf8"));
   assert.equal(manifest.status, "complete");
+  assert.equal(manifest.condition, "active");
 });
 
 test("Coze proxy authenticates the student and preserves a signed conversation", async (context) => {
@@ -89,6 +120,9 @@ test("Coze proxy authenticates the student and preserves a signed conversation",
     ossInternal: false,
     cozeApiToken: "test-token",
     cozeBotId: "7649339604520697891",
+    aiLevelPrompts: TEST_LEVEL_PROMPTS,
+    aiPromptsConfigured: true,
+    aiPromptConfigError: "",
   };
   const calls = [];
   let statusChecks = 0;
@@ -114,6 +148,7 @@ test("Coze proxy authenticates the student and preserves a signed conversation",
   context.after(() => server.close());
   const base = `http://127.0.0.1:${server.address().port}`;
   const ticket = createTicket({
+    ...STUDY_CLAIMS,
     class_id: "CLASS-5A",
     student_code: "S001",
     upload_id: "upload_001",
@@ -123,19 +158,29 @@ test("Coze proxy authenticates the student and preserves a signed conversation",
   const firstResponse = await fetch(`${base}/api/coze/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:4173" },
-    body: JSON.stringify({ ticket, message: "我卡住了" }),
+    body: JSON.stringify({
+      ticket,
+      level_id: "spinner_race",
+      trigger: "repeated_failure",
+      message: "我卡住了",
+      state: { checkpoint: 2, obstacle_hits: 3, falls: 1, remaining_time: 42, answer: "secret" },
+    }),
   });
   assert.equal(firstResponse.status, 200);
   const first = await firstResponse.json();
   assert.equal(first.status, "pending");
   assert.ok(first.poll);
-  assert.equal(calls[0].userId, "web_upload_001");
+  assert.match(calls[0].userId, /^web_[a-f0-9]{24}$/);
+  assert.doesNotMatch(calls[0].userId, /upload_001/);
   assert.equal(calls[0].conversationId, "");
+  assert.match(calls[0].message, /第二关隐藏教学档案/);
+  assert.match(calls[0].message, /"checkpoint":2/);
+  assert.doesNotMatch(calls[0].message, /answer/);
 
   const statusResponse = await fetch(`${base}/api/coze/chat/status`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:4173" },
-    body: JSON.stringify({ ticket, poll: first.poll }),
+    body: JSON.stringify({ ticket, level_id: "spinner_race", poll: first.poll }),
   });
   assert.equal(statusResponse.status, 200);
   const waiting = await statusResponse.json();
@@ -145,7 +190,7 @@ test("Coze proxy authenticates the student and preserves a signed conversation",
   const completedResponse = await fetch(`${base}/api/coze/chat/status`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:4173" },
-    body: JSON.stringify({ ticket, poll: first.poll }),
+    body: JSON.stringify({ ticket, level_id: "spinner_race", poll: first.poll }),
   });
   assert.equal(completedResponse.status, 200);
   const completed = await completedResponse.json();
@@ -156,7 +201,14 @@ test("Coze proxy authenticates the student and preserves a signed conversation",
   const secondResponse = await fetch(`${base}/api/coze/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:4173" },
-    body: JSON.stringify({ ticket, message: "然后呢", session: completed.session }),
+    body: JSON.stringify({
+      ticket,
+      level_id: "spinner_race",
+      trigger: "manual",
+      message: "然后呢",
+      state: { checkpoint: 2, obstacle_hits: 3, falls: 1, remaining_time: 40 },
+      session: completed.session,
+    }),
   });
   assert.equal(secondResponse.status, 200);
   assert.equal(calls[3].conversationId, "7500000000000000001");
@@ -166,7 +218,51 @@ test("Coze proxy authenticates the student and preserves a signed conversation",
   const tamperedResponse = await fetch(`${base}/api/coze/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:4173" },
-    body: JSON.stringify({ ticket, message: "非法续接", session: tamperedSession }),
+    body: JSON.stringify({
+      ticket,
+      level_id: "spinner_race",
+      trigger: "manual",
+      message: "非法续接",
+      state: {},
+      session: tamperedSession,
+    }),
   });
   assert.equal(tamperedResponse.status, 400);
+
+  const crossLevelResponse = await fetch(`${base}/api/coze/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:4173" },
+    body: JSON.stringify({
+      ticket,
+      level_id: "data_chip_hunt",
+      trigger: "manual",
+      message: "继续提示",
+      state: { chips: 3, falls: 1, remaining_time: 40 },
+      session: completed.session,
+    }),
+  });
+  assert.equal(crossLevelResponse.status, 400);
+  assert.equal((await crossLevelResponse.json()).code, "agent_session_level_mismatch");
+
+  const passiveTicket = createTicket({
+    ...STUDY_CLAIMS,
+    condition: "passive",
+    class_id: "CLASS-5A",
+    student_code: "S002",
+    upload_id: "upload_002",
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  }, config.linkSecret);
+  const forbiddenAutomaticResponse = await fetch(base + "/api/coze/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:4173" },
+    body: JSON.stringify({
+      ticket: passiveTicket,
+      level_id: "spinner_race",
+      trigger: "idle",
+      message: "自动提示",
+      state: { checkpoint: 1 },
+    }),
+  });
+  assert.equal(forbiddenAutomaticResponse.status, 403);
+  assert.equal((await forbiddenAutomaticResponse.json()).code, "agent_condition_forbidden");
 });

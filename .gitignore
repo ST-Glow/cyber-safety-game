@@ -26,3 +26,7 @@ mock-oss/
 generated/
 _site/
 test-runtime/
+dist/
+
+.vercel
+.env*

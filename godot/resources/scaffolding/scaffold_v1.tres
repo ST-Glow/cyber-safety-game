@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ScaffoldConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/scaffolding/scaffold_config.gd" id="1_config"]
+
+[resource]
+script = ExtResource("1_config")
+scaffold_version = "v1"
+grace_period_seconds = 20.0
+proactive_idle_threshold = 30.0
+proactive_no_progress_threshold = 45.0
+quiz_hesitation_threshold = 25.0
+reactive_failure_threshold = 2
+reactive_quiz_error_threshold = 2
+repeated_strategy_window_seconds = 30.0
+cooldown_seconds = 60.0
+remind_later_seconds = 30.0
+max_scaffolds_per_level = 3
+allowed_hint_levels = Array[int]([1, 2, 3])
+progress_distance_epsilon = 1.5
+repeated_movement_window_seconds = 20.0
+safe_window_seconds = 3.0

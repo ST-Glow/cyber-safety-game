@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="QuizQuestion" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/quiz_question.gd" id="1_quiz"]
+
+[resource]
+script = ExtResource("1_quiz")
+title = "检查点 3 · 事实核验"
+prompt = "AI给出的历史日期与你的教材不一致，首先应该怎么做？"
+options = PackedStringArray("直接相信内容更长的一方", "查看教材和可靠资料，核对来源后再判断", "让AI反复回答，直到出现想要的答案")
+correct_index = 1
+explanation = "AI生成的内容可能包含事实错误。遇到冲突时，应使用教材、权威网站等可靠来源进行交叉核验。"

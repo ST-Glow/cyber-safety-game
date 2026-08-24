@@ -22,6 +22,8 @@ const start = Number(argument("start", "1"));
 const prefix = argument("prefix", "P").trim().toUpperCase();
 const output = argument("output");
 const hours = Number(argument("hours", "12"));
+const studyVersion = argument("study-version", "godot-v1").trim();
+const seed = argument("seed", classId).trim();
 const secret = process.env.UPLOAD_LINK_SECRET || "";
 
 if (explicitStudents.length > 0 && count > 0) {
@@ -44,20 +46,33 @@ if (new Set(students).size !== students.length) {
   process.exit(1);
 }
 
-if (!baseUrl || !classId || students.length === 0 || !secret || !Number.isFinite(hours) || hours <= 0) {
-  console.error("Usage: set UPLOAD_LINK_SECRET, then pass --base-url, --class, either --students S001,S002 or --count 30 [--prefix P], and optional --start/--hours/--output");
+if (!baseUrl || !classId || students.length === 0 || !secret || !studyVersion || !seed || !Number.isFinite(hours) || hours <= 0) {
+  console.error("Usage: set UPLOAD_LINK_SECRET, then pass --base-url, --class, either --students S001,S002 or --count 30 [--prefix P], and optional --start/--hours/--study-version/--seed/--output");
   process.exit(1);
 }
 
 const expiresAt = Math.floor(Date.now() / 1000 + hours * 3600);
-const rows = [["student_code", "game_url", "upload_id", "expires_at"]];
+const rankedStudents = [...students].sort((left, right) => {
+  const leftRank = crypto.createHmac("sha256", seed).update(left).digest("hex");
+  const rightRank = crypto.createHmac("sha256", seed).update(right).digest("hex");
+  return leftRank.localeCompare(rightRank) || left.localeCompare(right);
+});
+const conditionByStudent = new Map(rankedStudents.map((studentCode, index) => [studentCode, index % 2 === 0 ? "active" : "passive"]));
+const rows = [["student_code", "condition", "game_url", "upload_id", "expires_at", "study_version"]];
 for (const studentCode of students) {
   const uploadId = crypto.randomUUID().replaceAll("-", "");
-  const ticket = createTicket({ class_id: classId, student_code: studentCode, upload_id: uploadId, exp: expiresAt }, secret);
+  const condition = conditionByStudent.get(studentCode);
+  const ticket = createTicket({
+    study_version: studyVersion,
+    condition,
+    class_id: classId,
+    student_code: studentCode,
+    upload_id: uploadId,
+    exp: expiresAt,
+  }, secret);
   const url = new URL(baseUrl);
-  url.searchParams.set("student", studentCode);
   url.searchParams.set("ticket", ticket);
-  rows.push([studentCode, url.toString(), uploadId, new Date(expiresAt * 1000).toISOString()]);
+  rows.push([studentCode, condition, url.toString(), uploadId, new Date(expiresAt * 1000).toISOString(), studyVersion]);
 }
 const content = `${rows.map((row) => row.map(csv).join(",")).join("\n")}\n`;
 if (output) {
