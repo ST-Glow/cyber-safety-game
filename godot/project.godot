@@ -20,6 +20,7 @@ PauseCoordinator="*res://scripts/pause_coordinator.gd"
 AiAssistantService="*res://scripts/ai_assistant_service.gd"
 CampaignSession="*res://scripts/campaign_session.gd"
 ExperimentSession="*res://scripts/experiment_session.gd"
+ExperimentWebBridge="*res://scripts/experiment_web_bridge.gd"
 SceneTransition="*res://scripts/scene_transition.gd"
 
 [debug]

@@ -11,7 +11,20 @@ var _buttons_locked: bool = false
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_build_menu()
+	var web_bridge := get_node_or_null("/root/ExperimentWebBridge")
+	if web_bridge and bool(web_bridge.call("is_production")):
+		_build_production_waiting()
+		set_process(true)
+	else:
+		_build_menu()
+		set_process(false)
+
+
+func _process(_delta: float) -> void:
+	var web_bridge := get_node_or_null("/root/ExperimentWebBridge")
+	if web_bridge and String(web_bridge.call("consent_status")) == "accepted":
+		set_process(false)
+		_start_campaign()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -108,6 +121,23 @@ func _build_menu() -> void:
 	var hint := _label("鼠标点击或按 1–5 选择 · F6 仍可在编辑器直接运行单关", 14, Color("91a9c7"))
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	content.add_child(hint)
+
+
+func _build_production_waiting() -> void:
+	var theme := Theme.new()
+	theme.default_font = UI_FONT
+	theme.default_font_size = 18
+	self.theme = theme
+	var background := ColorRect.new()
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	background.color = Color("0b1832")
+	add_child(background)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(center)
+	var label := _label("正在准备四关实验流程…\n请先阅读并选择页面上的参与说明", 24, Color("d9f7f4"))
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	center.add_child(label)
 
 
 func _start_single_level(level_id: String) -> void:

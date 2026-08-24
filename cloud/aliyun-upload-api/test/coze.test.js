@@ -100,13 +100,13 @@ test("JWT OAuth token is generated once and reused until its renewal window", as
 
   const adapter = createCozeAdapter({
     cozeApiToken: "old-pat-is-not-used",
-    cozeBotId: "7647799189921284146",
+    cozeBotId: "7650000000000000001",
     cozeOauthClientId: "1167033540105",
     cozeOauthPublicKeyId: "public-key-id",
     cozeOauthPrivateKey: privateKey.export({ type: "pkcs8", format: "pem" }),
   });
   assert.equal(adapter.authMode, "jwt_oauth");
-  assert.equal(adapter.botId, "7647799189921284146");
+  assert.equal(adapter.botId, "7650000000000000001");
 
   await adapter.chat({ message: "first", conversationId: "", userId: "web_1" });
   await adapter.chat({ message: "second", conversationId: "", userId: "web_2" });
@@ -126,5 +126,5 @@ test("JWT OAuth token is generated once and reused until its renewal window", as
   const chatCalls = calls.filter((call) => new URL(call.url).pathname === "/v3/chat");
   assert.equal(chatCalls.length, 2);
   assert.equal(chatCalls[0].options.headers.Authorization, "Bearer oauth-access-token");
-  assert.equal(JSON.parse(chatCalls[0].options.body).bot_id, "7647799189921284146");
+  assert.equal(JSON.parse(chatCalls[0].options.body).bot_id, "7650000000000000001");
 });

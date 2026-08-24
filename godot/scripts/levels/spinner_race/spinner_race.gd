@@ -1,6 +1,7 @@
 extends "res://scripts/third_person_level_base.gd"
 
 const EXPERIMENT_EVENTS := preload("res://scripts/experiment_event_bridge.gd")
+const SCAFFOLD_CONTROLLER_SCRIPT := preload("res://scripts/scaffolding/scaffold_controller.gd")
 
 const RACE_MANAGER_SCRIPT := preload("res://scripts/levels/spinner_race/spinner_race_manager.gd")
 const RACE_UI_SCRIPT := preload("res://scripts/levels/spinner_race/spinner_race_ui.gd")
@@ -50,8 +51,7 @@ var pending_checkpoint_spawn := Transform3D.IDENTITY
 var pending_checkpoint_question: QuizQuestion
 var _quiz_pause_token: int = 0
 var _result_pause_token: int = 0
-var _assistant_prompted: bool = false
-var _assistant_pending: bool = false
+var scaffold_controller
 
 func _ready() -> void:
 	_ensure_third_person_inputs()
@@ -65,6 +65,7 @@ func _ready() -> void:
 	_build_finish_trigger()
 	_build_ui()
 	_connect_signals()
+	_build_scaffold_controller()
 	_reset_race()
 
 
@@ -77,6 +78,13 @@ func _process(delta: float) -> void:
 		0.0,
 		1.0
 	)
+	if scaffold_controller and race_manager.is_running():
+		if Vector2(player.velocity.x, player.velocity.z).length() > 0.2:
+			scaffold_controller.notify_basic_operation({"action": "move"})
+		scaffold_controller.observe_progress_value(
+			COURSE_START_Z - player.global_position.z,
+			{"progress": roundi(progress * 100.0)}
+		)
 	race_ui.update_race(
 		race_manager.countdown_left,
 		race_manager.time_left,
@@ -319,6 +327,21 @@ func _build_ui() -> void:
 	race_ui.configure_assistant("spinner_race", _get_ai_assistant_state)
 
 
+func _build_scaffold_controller() -> void:
+	scaffold_controller = SCAFFOLD_CONTROLLER_SCRIPT.new()
+	scaffold_controller.name = "ScaffoldController"
+	add_child(scaffold_controller)
+	scaffold_controller.configure(
+		"spinner_race",
+		"responsible_ai_checkpoints",
+		"通过四个检查点并完成每个 AI 知识题，在限时内抵达终点",
+		_get_ai_assistant_state,
+		_is_scaffold_safe,
+		race_ui.assistant_widget
+	)
+	race_ui.configure_assistant("spinner_race", scaffold_controller.get_ai_context)
+
+
 func _connect_signals() -> void:
 	player.fell.connect(_on_player_fell)
 	player.jump_used.connect(_on_jump_used)
@@ -328,12 +351,12 @@ func _connect_signals() -> void:
 	race_manager.race_started.connect(_on_race_started)
 	race_manager.checkpoint_updated.connect(_on_checkpoint_updated)
 	race_manager.race_finished.connect(_on_race_finished)
-	race_manager.assistance_damage_changed.connect(_on_assistance_damage_changed)
 
 
 func _on_race_started() -> void:
 	player.set_controls_enabled(true)
 	_set_obstacles_active(true)
+	scaffold_controller.begin_run()
 
 
 func _on_countdown_changed(seconds_left: int) -> void:
@@ -344,6 +367,7 @@ func _on_player_fell() -> void:
 	if not race_manager.register_fall():
 		return
 	pending_fall_respawn = true
+	scaffold_controller.notify_failure("repeated_failure", {"checkpoint": race_manager.checkpoint_index, "area": _current_area(), "kind": "fall"})
 	player.begin_knockback(Vector3(0.0, 2.5, 0.0), 0.42)
 	_start_camera_shake(0.38, 0.2)
 
@@ -351,7 +375,8 @@ func _on_player_fell() -> void:
 func _on_spinner_hit(hit_player: PlayerController, source_position: Vector3) -> void:
 	if hit_player != player or not race_manager.is_running() or player.is_knocked_back():
 		return
-	race_manager.register_obstacle_hit()
+	if race_manager.register_obstacle_hit():
+		scaffold_controller.notify_failure("repeated_failure", {"checkpoint": race_manager.checkpoint_index, "area": _current_area(), "kind": "spinner_hit"})
 	var direction := player.global_position - source_position
 	direction.y = 0.0
 	if direction.length_squared() < 0.05:
@@ -364,7 +389,8 @@ func _on_spinner_hit(hit_player: PlayerController, source_position: Vector3) -> 
 func _on_pusher_hit(hit_player: PlayerController, push_direction: Vector3) -> void:
 	if hit_player != player or not race_manager.is_running() or player.is_knocked_back():
 		return
-	race_manager.register_obstacle_hit()
+	if race_manager.register_obstacle_hit():
+		scaffold_controller.notify_failure("repeated_failure", {"checkpoint": race_manager.checkpoint_index, "area": _current_area(), "kind": "pusher_hit"})
 	var direction := push_direction.normalized()
 	player.begin_knockback(direction * 6.0 + Vector3.UP * 2.6, 0.34)
 	_start_camera_shake(0.28, 0.17)
@@ -372,10 +398,12 @@ func _on_pusher_hit(hit_player: PlayerController, push_direction: Vector3) -> vo
 
 func _on_jump_used() -> void:
 	EXPERIMENT_EVENTS.record(self, "jump_used", "spinner_race")
+	scaffold_controller.notify_basic_operation({"action": "jump"})
 
 
 func _on_dash_used() -> void:
 	EXPERIMENT_EVENTS.record(self, "dash_used", "spinner_race")
+	scaffold_controller.notify_basic_operation({"action": "dash"})
 
 
 func _on_knockback_finished() -> void:
@@ -387,7 +415,7 @@ func _on_knockback_finished() -> void:
 		camera_rig.position = player.global_position + Vector3(0.0, 1.65, -1.7)
 	elif race_manager.is_running():
 		player.set_controls_enabled(true)
-	_try_show_assistant_reminder()
+	scaffold_controller.mark_safe_window()
 
 
 func _on_checkpoint_activated(checkpoint_index: int, spawn_transform: Transform3D, checkpoint: RaceCheckpoint) -> void:
@@ -404,6 +432,7 @@ func _on_checkpoint_activated(checkpoint_index: int, spawn_transform: Transform3
 	player.set_controls_enabled(false)
 	_quiz_pause_token = get_node("/root/PauseCoordinator").acquire(self, &"quiz")
 	race_ui.show_quiz(question, checkpoint_index)
+	scaffold_controller.notify_quiz_started()
 
 
 func _on_quiz_choice_selected(selected_index: int) -> void:
@@ -413,6 +442,7 @@ func _on_quiz_choice_selected(selected_index: int) -> void:
 		selected_index,
 		pending_checkpoint_question.correct_index
 	)
+	scaffold_controller.notify_quiz_result(correct, {"checkpoint": pending_checkpoint.checkpoint_index, "selected_index": selected_index})
 	if not correct:
 		race_ui.show_wrong_answer(selected_index, pending_checkpoint_question.explanation)
 		return
@@ -426,9 +456,12 @@ func _on_quiz_choice_selected(selected_index: int) -> void:
 	get_node("/root/PauseCoordinator").release(_quiz_pause_token)
 	_quiz_pause_token = 0
 	player.set_controls_enabled(race_manager.is_running())
+	scaffold_controller.notify_quiz_ended()
 
 
 func _on_checkpoint_updated(checkpoint_index: int, _spawn_transform: Transform3D) -> void:
+	scaffold_controller.notify_progress({"checkpoint": checkpoint_index})
+	scaffold_controller.mark_safe_window()
 	_show_milestone(
 		"检查点 %d / 4 已保存" % checkpoint_index,
 		"跌落后将从这里重新出发"
@@ -443,6 +476,7 @@ func _on_finish_body_entered(body: Node3D) -> void:
 
 
 func _on_race_finished(result: Dictionary) -> void:
+	scaffold_controller.end_run()
 	if _result_pause_token == 0:
 		_result_pause_token = get_node("/root/PauseCoordinator").acquire(self, &"result")
 	CampaignSession.record_level_result("spinner_race", result)
@@ -470,8 +504,8 @@ func _reset_race() -> void:
 	get_node("/root/PauseCoordinator").release_owner(self)
 	_quiz_pause_token = 0
 	_result_pause_token = 0
-	_assistant_prompted = false
-	_assistant_pending = false
+	if scaffold_controller:
+		scaffold_controller.reset_level()
 	get_node("/root/AiAssistantService").clear_level_session("spinner_race")
 	finish_triggered = false
 	pending_fall_respawn = false
@@ -494,27 +528,24 @@ func _on_assistant_toggled(open: bool) -> void:
 	player.set_controls_enabled(race_manager.is_running())
 
 
-func _on_assistance_damage_changed(total: int) -> void:
-	if total >= 3 and not _assistant_prompted and race_ui.assistant_widget.is_available():
-		_assistant_prompted = true
-		_assistant_pending = true
-
-
-func _try_show_assistant_reminder() -> void:
-	if not _assistant_pending or race_manager.state != SpinnerRaceManager.RaceState.RUNNING:
-		return
-	_assistant_pending = false
-	if race_ui.show_assistant_reminder():
-		player.set_controls_enabled(false)
-
-
 func _get_ai_assistant_state() -> Dictionary:
 	return {
 		"checkpoint": race_manager.checkpoint_index,
 		"obstacle_hits": race_manager.obstacle_hits,
 		"falls": race_manager.falls,
 		"remaining_time": snappedf(race_manager.time_left, 0.1),
+		"current_checkpoint": race_manager.checkpoint_index,
+		"current_area": _current_area(),
+		"current_choice": {"movement": "moving" if Vector2(player.velocity.x, player.velocity.z).length() > 0.2 else "waiting"},
 	}
+
+
+func _current_area() -> String:
+	return "checkpoint_%d_section" % clampi(race_manager.checkpoint_index + 1, 1, 4)
+
+
+func _is_scaffold_safe() -> bool:
+	return race_manager.is_running() and player.is_on_floor() and not player.is_dashing() and not player.is_knocked_back() and Vector2(player.velocity.x, player.velocity.z).length() < 1.5
 
 
 func _get_checkpoint_question(checkpoint_index: int) -> QuizQuestion:

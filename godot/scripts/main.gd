@@ -6,6 +6,7 @@ const SWEEPER_SCENE := preload("res://scenes/obstacles/rotating_sweeper.tscn")
 const GATE_SCENE := preload("res://scenes/obstacles/rising_gate.tscn")
 const BRIDGE_SCENE := preload("res://scenes/obstacles/tilt_bridge.tscn")
 const UI_SCRIPT := preload("res://scripts/game_ui.gd")
+const SCAFFOLD_CONTROLLER_SCRIPT := preload("res://scripts/scaffolding/scaffold_controller.gd")
 const QUIZ_RESOURCE := preload("res://resources/quiz/generative_ai.tres")
 const BLUE_PLATFORM := preload("res://assets/environments/platformer/kaykit_platformer_pack/models/blue/platform_6x6x1_blue.gltf")
 const RED_PLATFORM := preload("res://assets/environments/platformer/kaykit_platformer_pack/models/red/platform_6x6x1_red.gltf")
@@ -29,8 +30,7 @@ var ui: GameUI
 var spawn_transform := Transform3D.IDENTITY
 var obstacles: Array[Node] = []
 var finish_triggered: bool = false
-var _assistant_prompted: bool = false
-var _assistant_pending: bool = false
+var scaffold_controller
 
 
 func _ready() -> void:
@@ -46,6 +46,7 @@ func _ready() -> void:
 	_build_finish_trigger()
 	_build_ui()
 	_connect_game_signals()
+	_build_scaffold_controller()
 	_reset_level()
 	game_manager.prepare_run()
 	ui.show_ready()
@@ -56,6 +57,13 @@ func _process(delta: float) -> void:
 		return
 	_update_camera(delta)
 	var progress := clampf((COURSE_START_Z - player.global_position.z) / (COURSE_START_Z - COURSE_FINISH_Z), 0.0, 1.0)
+	if scaffold_controller and game_manager.state == GameManager.GameState.RUNNING:
+		if Vector2(player.velocity.x, player.velocity.z).length() > 0.2:
+			scaffold_controller.notify_basic_operation({"action": "move"})
+		scaffold_controller.observe_progress_value(
+			COURSE_START_Z - player.global_position.z,
+			{"progress": roundi(progress * 100.0)}
+		)
 	ui.update_hud(
 		progress,
 		game_manager.elapsed_seconds,
@@ -251,7 +259,21 @@ func _build_ui() -> void:
 
 func _connect_game_signals() -> void:
 	game_manager.run_completed.connect(_on_run_completed)
-	game_manager.assistance_damage_changed.connect(_on_assistance_damage_changed)
+
+
+func _build_scaffold_controller() -> void:
+	scaffold_controller = SCAFFOLD_CONTROLLER_SCRIPT.new()
+	scaffold_controller.name = "ScaffoldController"
+	add_child(scaffold_controller)
+	scaffold_controller.configure(
+		"ai_training_ground",
+		"generative_ai_basics",
+		"越过固定周期机关，抵达终点并完成生成式 AI 认知挑战",
+		_get_ai_assistant_state,
+		_is_scaffold_safe,
+		ui.assistant_widget
+	)
+	ui.configure_assistant("ai_training_ground", scaffold_controller.get_ai_context)
 
 
 func _on_start_requested() -> void:
@@ -259,6 +281,7 @@ func _on_start_requested() -> void:
 	ui.show_running()
 	game_manager.start_run()
 	player.set_controls_enabled(true)
+	scaffold_controller.begin_run()
 
 
 func _on_restart_requested() -> void:
@@ -267,6 +290,7 @@ func _on_restart_requested() -> void:
 	ui.show_running()
 	game_manager.start_run()
 	player.set_controls_enabled(true)
+	scaffold_controller.begin_run()
 
 
 func _on_next_level_requested() -> void:
@@ -285,6 +309,7 @@ func _on_assistant_toggled(open: bool) -> void:
 func _on_player_fell() -> void:
 	if not game_manager.register_fall():
 		return
+	scaffold_controller.notify_failure("repeated_failure", {"area": _current_area(), "kind": "fall"})
 	player.begin_knockback(Vector3(0.0, 3.0, 0.0), 0.52)
 	_start_camera_shake(0.42, 0.22)
 
@@ -292,6 +317,7 @@ func _on_player_fell() -> void:
 func _on_obstacle_hit(hit_player: PlayerController, source_position: Vector3) -> void:
 	if hit_player != player or not game_manager.register_obstacle_hit():
 		return
+	scaffold_controller.notify_failure("repeated_failure", {"area": _current_area(), "kind": "obstacle_hit"})
 	var knock_direction := player.global_position - source_position
 	knock_direction.y = 0.0
 	if knock_direction.length_squared() < 0.05:
@@ -304,7 +330,7 @@ func _on_obstacle_hit(hit_player: PlayerController, source_position: Vector3) ->
 func _on_knockback_finished() -> void:
 	player.respawn_at(spawn_transform)
 	game_manager.finish_respawn()
-	_try_show_assistant_reminder()
+	scaffold_controller.mark_safe_window()
 
 
 func _on_finish_body_entered(body: Node3D) -> void:
@@ -314,15 +340,21 @@ func _on_finish_body_entered(body: Node3D) -> void:
 		finish_triggered = true
 		player.set_controls_enabled(false)
 		ui.show_quiz(QUIZ_RESOURCE)
+		scaffold_controller.notify_quiz_started()
 
 
 func _on_quiz_choice_selected(selected_index: int) -> void:
+	var expected_correct := selected_index == QUIZ_RESOURCE.correct_index
+	scaffold_controller.notify_quiz_result(expected_correct, {"slot": 1, "selected_index": selected_index})
+	if expected_correct:
+		scaffold_controller.notify_quiz_ended()
 	var correct := game_manager.submit_quiz_answer(selected_index, QUIZ_RESOURCE.correct_index)
 	if not correct:
 		ui.show_wrong_answer(selected_index, QUIZ_RESOURCE.explanation)
 
 
 func _on_run_completed(result: Dictionary) -> void:
+	scaffold_controller.end_run()
 	CampaignSession.record_level_result("ai_training_ground", result)
 	player.play_celebration()
 	ui.show_result(result)
@@ -330,8 +362,8 @@ func _on_run_completed(result: Dictionary) -> void:
 
 func _reset_level() -> void:
 	finish_triggered = false
-	_assistant_prompted = false
-	_assistant_pending = false
+	if scaffold_controller:
+		scaffold_controller.reset_level()
 	get_node("/root/AiAssistantService").clear_level_session("ai_training_ground")
 	if ui:
 		ui.reset_assistant()
@@ -343,20 +375,6 @@ func _reset_level() -> void:
 	_reset_third_person_camera()
 
 
-func _on_assistance_damage_changed(total: int) -> void:
-	if total >= 3 and not _assistant_prompted and ui.assistant_widget.is_available():
-		_assistant_prompted = true
-		_assistant_pending = true
-
-
-func _try_show_assistant_reminder() -> void:
-	if not _assistant_pending or game_manager.state != GameManager.GameState.RUNNING:
-		return
-	_assistant_pending = false
-	if ui.show_assistant_reminder():
-		player.set_controls_enabled(false)
-
-
 func _get_ai_assistant_state() -> Dictionary:
 	var progress := clampf((COURSE_START_Z - player.global_position.z) / (COURSE_START_Z - COURSE_FINISH_Z), 0.0, 1.0)
 	return {
@@ -364,7 +382,23 @@ func _get_ai_assistant_state() -> Dictionary:
 		"obstacle_hits": game_manager.obstacle_hits,
 		"falls": game_manager.falls,
 		"elapsed": snappedf(game_manager.elapsed_seconds, 0.1),
+		"current_checkpoint": "start" if progress < 0.5 else "finish_approach",
+		"current_area": _current_area(),
+		"current_choice": {"movement": "moving" if Vector2(player.velocity.x, player.velocity.z).length() > 0.2 else "waiting"},
 	}
+
+
+func _current_area() -> String:
+	var progress := clampf((COURSE_START_Z - player.global_position.z) / (COURSE_START_Z - COURSE_FINISH_Z), 0.0, 1.0)
+	if progress < 0.34:
+		return "opening_obstacles"
+	if progress < 0.67:
+		return "moving_platforms"
+	return "finish_section"
+
+
+func _is_scaffold_safe() -> bool:
+	return game_manager.state == GameManager.GameState.RUNNING and player.is_on_floor() and not player.is_dashing() and not player.is_knocked_back() and Vector2(player.velocity.x, player.velocity.z).length() < 1.5
 
 
 func _update_camera(delta: float) -> void:

@@ -1,5 +1,7 @@
 extends PartyLevelBase
 
+const SCAFFOLD_CONTROLLER_SCRIPT := preload("res://scripts/scaffolding/scaffold_controller.gd")
+
 const MODE_MANAGER_SCRIPT := preload("res://scripts/party/party_mode_manager.gd")
 const MODE_UI_SCRIPT := preload("res://scripts/party/party_mode_ui.gd")
 const DATA_CHIP_SCENE := preload("res://scenes/party/data_chip.tscn")
@@ -50,8 +52,7 @@ var quiz_triggered: Array[bool] = [false, false]
 var pending_fall_respawn: bool = false
 var _quiz_pause_token: int = 0
 var _result_pause_token: int = 0
-var _assistant_prompted: bool = false
-var _assistant_pending: bool = false
+var scaffold_controller
 
 
 func _ready() -> void:
@@ -71,11 +72,14 @@ func _ready() -> void:
 	_spawn_chips()
 	_build_ui()
 	_connect_signals()
+	_build_scaffold_controller()
 	_reset_level()
 
 
 func _process(delta: float) -> void:
 	_update_party_camera(delta)
+	if scaffold_controller and mode_manager and mode_manager.is_running() and Vector2(player.velocity.x, player.velocity.z).length() > 0.2:
+		scaffold_controller.notify_basic_operation({"action": "move"})
 	if mode_manager == null or mode_ui == null:
 		return
 	var state_text := "收集中"
@@ -258,6 +262,21 @@ func _build_ui() -> void:
 	mode_ui.configure_assistant(LEVEL_ID, _get_ai_assistant_state)
 
 
+func _build_scaffold_controller() -> void:
+	scaffold_controller = SCAFFOLD_CONTROLLER_SCRIPT.new()
+	scaffold_controller.name = "ScaffoldController"
+	add_child(scaffold_controller)
+	scaffold_controller.configure(
+		LEVEL_ID,
+		"training_data_and_prediction",
+		"在 75 秒内探索三条路线，收集全部 12 枚 AI 芯片并完成知识检查",
+		_get_ai_assistant_state,
+		_is_scaffold_safe,
+		mode_ui.assistant_widget
+	)
+	mode_ui.configure_assistant(LEVEL_ID, scaffold_controller.get_ai_context)
+
+
 func _connect_signals() -> void:
 	_connect_party_player_events(LEVEL_ID)
 	player.fell.connect(_on_player_fell)
@@ -266,7 +285,6 @@ func _connect_signals() -> void:
 	mode_manager.run_started.connect(_on_run_started)
 	mode_manager.time_expired.connect(_on_time_expired)
 	mode_manager.run_finished.connect(_on_run_finished)
-	mode_manager.assistance_damage_changed.connect(_on_assistance_damage_changed)
 	mode_ui.quiz_choice_selected.connect(_on_quiz_choice_selected)
 	mode_ui.restart_requested.connect(_on_restart_requested)
 	mode_ui.next_level_requested.connect(_on_next_level_requested)
@@ -281,6 +299,7 @@ func _on_run_started() -> void:
 	mode_ui.hide_countdown()
 	player.set_controls_enabled(true)
 	_set_moving_platforms_active(true)
+	scaffold_controller.begin_run()
 
 
 func _on_chip_collected(_chip_id: int, chip: DataChip) -> void:
@@ -288,6 +307,8 @@ func _on_chip_collected(_chip_id: int, chip: DataChip) -> void:
 		chip.reset_chip()
 		return
 	collected_count += 1
+	scaffold_controller.notify_basic_operation({"action": "collect", "chip_id": _chip_id})
+	scaffold_controller.notify_progress({"chips": collected_count})
 	if collected_count == 6 and not quiz_triggered[0]:
 		quiz_triggered[0] = true
 		_show_milestone("已收集 6 / 12", "知识检查点已解锁")
@@ -306,6 +327,7 @@ func _open_quiz(slot: int, question: QuizQuestion) -> void:
 	player.set_controls_enabled(false)
 	_quiz_pause_token = get_node("/root/PauseCoordinator").acquire(self, &"quiz")
 	mode_ui.show_quiz(question, slot, 2)
+	scaffold_controller.notify_quiz_started()
 
 
 func _on_quiz_choice_selected(selected_index: int) -> void:
@@ -313,6 +335,7 @@ func _on_quiz_choice_selected(selected_index: int) -> void:
 		return
 	var completed_slot := active_quiz_slot
 	var correct := mode_manager.submit_quiz_answer(selected_index, active_question.correct_index)
+	scaffold_controller.notify_quiz_result(correct, {"slot": completed_slot, "selected_index": selected_index})
 	if not correct:
 		mode_ui.show_wrong_answer(selected_index, active_question.explanation)
 		return
@@ -321,6 +344,7 @@ func _on_quiz_choice_selected(selected_index: int) -> void:
 	mode_ui.hide_quiz()
 	get_node("/root/PauseCoordinator").release(_quiz_pause_token)
 	_quiz_pause_token = 0
+	scaffold_controller.notify_quiz_ended()
 	if completed_slot == 2:
 		player.set_controls_enabled(false)
 		mode_manager.finish(true, _get_mode_metrics())
@@ -333,6 +357,7 @@ func _on_player_fell() -> void:
 	if not mode_manager.register_fall():
 		return
 	pending_fall_respawn = true
+	scaffold_controller.notify_failure("repeated_failure", {"area": _current_area(), "kind": "fall"})
 	player.begin_knockback(Vector3(0.0, 2.5, 0.0), 0.42)
 	_start_party_camera_shake(0.38, 0.2)
 
@@ -345,7 +370,7 @@ func _on_knockback_finished() -> void:
 		_reset_party_camera()
 	elif mode_manager.is_running():
 		player.set_controls_enabled(true)
-	_try_show_assistant_reminder()
+	scaffold_controller.mark_safe_window()
 
 
 func _on_time_expired() -> void:
@@ -354,6 +379,7 @@ func _on_time_expired() -> void:
 
 
 func _on_run_finished(result: Dictionary) -> void:
+	scaffold_controller.end_run()
 	if _result_pause_token == 0:
 		_result_pause_token = get_node("/root/PauseCoordinator").acquire(self, &"result")
 	_set_moving_platforms_active(false)
@@ -388,8 +414,8 @@ func _reset_level() -> void:
 	get_node("/root/PauseCoordinator").release_owner(self)
 	_quiz_pause_token = 0
 	_result_pause_token = 0
-	_assistant_prompted = false
-	_assistant_pending = false
+	if scaffold_controller:
+		scaffold_controller.reset_level()
 	get_node("/root/AiAssistantService").clear_level_session(LEVEL_ID)
 	collected_count = 0
 	active_question = null
@@ -416,26 +442,27 @@ func _on_assistant_toggled(open: bool) -> void:
 	player.set_controls_enabled(mode_manager.is_running())
 
 
-func _on_assistance_damage_changed(total: int) -> void:
-	if total >= 3 and not _assistant_prompted and mode_ui.assistant_widget.is_available():
-		_assistant_prompted = true
-		_assistant_pending = true
-
-
-func _try_show_assistant_reminder() -> void:
-	if not _assistant_pending or mode_manager.state != PartyModeManager.RunState.RUNNING:
-		return
-	_assistant_pending = false
-	if mode_ui.show_assistant_reminder():
-		player.set_controls_enabled(false)
-
-
 func _get_ai_assistant_state() -> Dictionary:
 	return {
 		"chips": collected_count,
 		"falls": mode_manager.falls,
 		"remaining_time": snappedf(mode_manager.time_left, 0.1),
+		"current_checkpoint": "quiz_%d" % active_quiz_slot if active_quiz_slot > 0 else "chips_%d" % collected_count,
+		"current_area": _current_area(),
+		"current_choice": {"route": _current_area()},
 	}
+
+
+func _current_area() -> String:
+	if player.global_position.x < -4.0:
+		return "left_route"
+	if player.global_position.x > 4.0:
+		return "right_route"
+	return "center_route"
+
+
+func _is_scaffold_safe() -> bool:
+	return mode_manager.is_running() and player.is_on_floor() and not player.is_dashing() and not player.is_knocked_back() and Vector2(player.velocity.x, player.velocity.z).length() < 1.5
 
 
 func _set_moving_platforms_active(active: bool) -> void:

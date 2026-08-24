@@ -1,82 +1,51 @@
-# AI训练场大挑战：运行与验收手册
+# Godot 四关版运行与验收
 
-## 当前入口与运行模式
+## 运行模式
 
-- F5 运行 `res://scenes/main_menu.tscn`，可选择四个单关或“派对流程”。
-- 单关模式结算后返回主菜单；派对流程从第一关开始，依次串联四关并在最终关展示汇总。
-- F6 仍可直接运行当前关卡场景，默认按单关模式处理。
-- 所有关卡结果统一使用 0–100 分、`score_schema_version = 2`；运行 HUD 显示“过程表现 /40”，结算显示“综合评分 /100”。
+- 编辑器/本地非生产构建：主菜单可选四个单关或四关连续流程，F6 可直跑单关。
+- 正式 Web 构建：有效 v2 票据 + 成人同意后自动进入四关连续流程，不显示单关菜单。
+- `active`：停滞、无进展、重复失败、答题错误、重复策略均可邀请。
+- `passive`：仅学生主动打开助手时调用同一个 Bot。
 
-完整自动回归从项目根目录运行：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\godot\tests\run_smoke_tests.ps1
-```
-
-测试入口支持 `-GodotExe <path>`、`GODOT4_BIN`，最后回退到文档化的 Godot 4.7.1 路径。当前套件包含 9 项冒烟测试。
-
-## 当前范围
-
-这个版本实现一个约 1–2 分钟的第三人称 3D 赛段：Ranger 角色移动、跳跃、冲刺、旋转扫杆、三道升降门、倾斜软桥、碰撞或跌落复位、一道生成式 AI 单选题和结算。
-
-暂未加入录像、上传、学生编号、IndexedDB、智能体网络调用和正式三赛段内容。右下角的 AI 助手仅用于验证暂停交互。
-
-## 运行与操作
-
-在 Godot 4.7.1 中打开 `project.godot` 并运行主场景。
-
-- `WASD` 或方向键：相对摄像机移动
-- `Space`：跳跃
-- `Shift`：冲刺 220 ms，2.5 倍速度，冷却 2.5 秒
-- 鼠标或数字键 `1`、`2`、`3`：选择答案
-
-## 自动化检查
+## 自动回归
 
 ```powershell
-& 'E:\浏览器下载\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe' --headless --path 'D:\大学\游戏项目开发\godot' --script 'res://tests/mvp_smoke_test.gd'
+./godot/tests/run_smoke_tests.ps1
 ```
 
-成功标志为 `MVP_SMOKE_TEST_OK`。测试覆盖 34 个断言，包括方向、跳跃高度、冲刺、暂停、机关相位、跌落、复位、答题、评分和结算字段。
+测试入口固定兼容 Godot 4.7.1，并覆盖主菜单、四关流程、事件、评分、支架
+条件与 AI 服务。后端测试从 `cloud/aliyun-upload-api` 运行 `npm test`。
 
 ## Web 导出
 
-项目使用 Compatibility 渲染器和无多线程 Web 模板。导出命令：
+开发导出：
 
 ```powershell
-& 'E:\浏览器下载\Godot_v4.7.1-stable_win64.exe\Godot_v4.7.1-stable_win64_console.exe' --headless --path 'D:\大学\游戏项目开发\godot' --export-debug 'Web' 'D:\大学\游戏项目开发\godot\build\web\index.html'
+./godot/tools/export_web.ps1 -ApiBaseUrl http://127.0.0.1:8787
 ```
 
-不要直接双击 `index.html` 验证 WebAssembly；请在 `build/web` 上启动本地 HTTP 服务后访问。当前导出已经在 1280×720、1366×768 和 1920×1080 视口验证，Canvas 覆盖完整视口，中文字体离线可用，浏览器控制台无警告或错误。
-
-## 后续数据接口
-
-`GameManager` 已提供以下信号：
-
-- `run_started`
-- `jump_used`
-- `dash_used`
-- `obstacle_hit`
-- `player_respawned`
-- `quiz_answered`
-- `run_completed(result)`
-
-`run_completed` 的结果包含 `elapsed_seconds`、`obstacle_hits`、`falls`、`quiz_attempts`、`score` 和 `stars`，后续录像与实验数据模块可以只监听这些接口，不需要修改关卡玩法。
-
-## 测试环境说明
-
-项目关闭了 Godot 的文件日志输出，避免受限环境无法写入 `AppData` 时触发日志轮转错误；控制台输出和自动化测试结果不受影响。需要恢复本地日志时，应先确认 `user://logs` 可写，再重新启用 `debug/file_logging/enable_file_logging.pc`。
-# 分关 AI 提示助手
-
-后端必须配置 `AI_LEVEL_PROMPTS_JSON`，其中包含 `ai_training_ground`、`spinner_race`、`data_chip_hunt`、`signal_bomb_survival` 四个非空隐藏教学档案。档案只保存在服务端环境变量中，不得写入 Godot 工程、Web 包或课堂链接。
-
-本地 Web 构建运行：
+生产导出：
 
 ```powershell
-.\tools\export_web.ps1 -ApiBaseUrl http://127.0.0.1:8787
+./godot/tools/export_web.ps1 `
+  -PrimaryApiBaseUrl https://PRIMARY.cn-hongkong.fcapp.run `
+  -FallbackApiBaseUrl https://PROJECT.vercel.app `
+  -StudyVersion godot-v1 -BuildVersion RELEASE_ID -ProductionMode
 ```
 
-正式构建先设置 HTTPS 地址 `AI_API_BASE_URL`，再运行同一脚本。脚本只把固定 API 根地址注入 `window.GODOT_AI_CONFIG`；课堂票据继续由签名链接的 `ticket` 参数提供，客户端不接受 URL 参数覆盖 API 地址。
+脚本会导出 `godot/build/web`，注入主/备 API 与构建版本，并从已锁定的
+`ali-oss` npm 依赖复制浏览器 SDK；产物不依赖外部 CDN。请通过 HTTP 服务
+打开 WebAssembly，不能双击 `index.html`。
 
-助手在无课堂票据、原生运行或后端未配置时安全禁用。四关各自维护会话；每局第 3 次有效受伤只询问一次，学生确认后才请求 AI。
+## 数据与上传验收
 
-本地 HTTP 服务应使用后端 `ALLOWED_ORIGINS` 中登记的来源（示例为 `http://127.0.0.1:4174`），并通过 `http://127.0.0.1:4174/?ticket=<签名课堂票据>` 验证。浏览器 Network 请求中只应看到课堂票据、关卡 ID、触发原因、学生问题和白名单状态，不应出现 Coze 密钥、OAuth 私钥或隐藏档案。
+1. 同意前确认未开始录制、未写事件；拒绝后不进入游戏。
+2. 同意后浏览器权限列表中没有麦克风、摄像头或屏幕共享。
+3. 刷新页面后确认 IndexedDB 中的待上传包可以续传。
+4. 四关完成后仅在服务端确认 `manifest.json` 后显示保存成功。
+5. OSS 路径为
+   `studies/godot-v1/<class>/<condition>/<student>/<upload_id>/`，包含四个对象。
+6. 断开主 FC 或令其返回 5xx，确认 AI 与上传 API 自动切换到 Vercel。
+
+正式验收在最新版桌面 Chrome、Edge 各跑 active/passive 一条。手机和触控
+不在本次范围。

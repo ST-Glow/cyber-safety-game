@@ -1,43 +1,50 @@
-# 网络安全保护 HTML 游戏
+# Godot 四关 AI 学习实验
 
-这是面向课堂实验参与者的 HTML5 网页游戏，主题为“个人信息保护”。参与者通过教师生成的匿名专属链接进入，无需安装软件；通关后行为序列、实验总结和游戏录像会自动上传到研究者的私有阿里云 OSS。
+正式版本是 Godot 4.7.1 Web 四关连续流程。GitHub Pages 只发布
+`godot/build/web`；`web-game/` 是历史实现，不再参与构建或课堂运行。
 
-## 正式运行结构
+## 正式架构
 
-- `web-game/`：学生使用的 HTML、CSS 和 JavaScript 游戏。
-- GitHub Pages：提供公开 HTTPS 游戏网页。
-- Vercel：提供短期 OSS 授权与上传完成校验 API。
-- 私有阿里云 OSS：保存 `session.jsonl`、`summary.json`、MP4/WebM 录像和上传清单。
+- GitHub Pages：Godot Web 游戏、成人知情同意页、本地 OSS 浏览器 SDK。
+- 阿里云香港函数计算：主 API，负责票据校验、扣子代理、STS 和上传确认。
+- Vercel：同一后端的自动回退实例。
+- 私有阿里云 OSS：按
+  `studies/godot-v1/<class>/<condition>/<student>/<upload_id>/` 保存数据。
 
-Unity 目录仅作为早期原型备份保留，不参与网页构建、部署或课堂运行。
+正式链接使用 v2 签名票据，包含 `study_version` 和 `active|passive`
+条件。`active` 可在停滞、无进展、答错和重复失败/策略时邀请；`passive`
+只在学生主动打开助手后调用同一个扣子 Bot。
 
-## 网页版功能
+参与者同意后只录制 Godot Canvas，不请求麦克风、摄像头、桌面或标签页
+权限。事件逐条保存到 IndexedDB，四关完成后上传 `session.jsonl`、
+`summary.json`、录像（或缺失说明）；只有服务端写入 `manifest.json` 后才
+显示可以关闭页面。
 
-- 教师预分配匿名学生编号，不采集真实姓名、手机号或头像。
-- 2D 俯视闯关：收集隐私密钥、避开巡逻风险、使用隐私护盾并完成终端判断。
-- 记录研究所需的点击、移动、错误尝试、停滞、风险接触、提示选择和任务完成事件。
-- 停滞时可通过 Vercel 服务端代理向扣子智能体提问；JWT OAuth 令牌会在服务端按需自动续期，不会发送到参与者浏览器。
-- 可按参与人数一次性生成整批独立签名链接，无需在 Vercel 逐人添加令牌。
-- 浏览器优先录制当前游戏标签页；不可用时退回只录游戏 Canvas，不录麦克风或摄像头。
-- 通关后自动上传三份实验文件；断网时保存在 IndexedDB 并自动重试、刷新后续传。
-- 只有服务端确认三份文件完整后，页面才显示“保存成功，可以关闭页面”。
-
-## 本地预览
+## 本地验证
 
 ```powershell
-Set-Location web-game
-python -m http.server 4173 --bind 127.0.0.1
+Set-Location cloud/aliyun-upload-api
+npm ci
+npm test
+Set-Location ../..
+./godot/tests/run_smoke_tests.ps1
+./godot/tools/export_web.ps1 -ApiBaseUrl http://127.0.0.1:8787
 ```
 
-浏览器打开 `http://127.0.0.1:4173/?upload=off`。正式学生使用时不要添加 `upload=off`。
+正式导出必须提供两个不同的 HTTPS API：
 
-## 部署文档
+```powershell
+./godot/tools/export_web.ps1 `
+  -PrimaryApiBaseUrl https://PRIMARY.cn-hongkong.fcapp.run `
+  -FallbackApiBaseUrl https://PROJECT.vercel.app `
+  -StudyVersion godot-v1 -BuildVersion RELEASE_ID -ProductionMode
+```
 
-- 无备案、自带 HTTPS 地址：`VERCEL_UPLOAD_API_DEPLOYMENT.md`
-- 网页运行与测试：`web-game/README.md`
-- 隐私与知情同意：`PRIVACY_AND_CONSENT.md`
-- 阿里云函数计算备选方案：`CLOUD_UPLOAD_DEPLOYMENT.md`
+## 运维文档
 
-## 重要隐私约束
+- [香港函数计算部署](CLOUD_UPLOAD_DEPLOYMENT.md)
+- [Vercel 回退端部署](VERCEL_UPLOAD_API_DEPLOYMENT.md)
+- [隐私与成人知情同意](PRIVACY_AND_CONSENT.md)
+- [Godot 运行与验收](godot/docs/mvp_runbook.md)
 
-课堂实验前应准备适用于参与者年龄和研究要求的知情同意材料；涉及未成年人时，应按要求取得学校及监护人同意。材料中需明确采集内容、研究用途、保存期限与删除方式，录像和日志不得设置为公开访问。
+正式范围仅支持电脑最新版 Chrome 和 Edge，不提供手机触控适配。

@@ -12,11 +12,18 @@ const {
 } = require("../src/auth");
 
 const secret = "test-secret-at-least-16-characters";
-const claims = { class_id: "CLASS-5A", student_code: "S001", upload_id: "upload_001", exp: 2000000000 };
+const claims = {
+  study_version: "godot-v1",
+  condition: "active",
+  class_id: "CLASS-5A",
+  student_code: "S001",
+  upload_id: "upload_001",
+  exp: 2000000000,
+};
 
 test("creates and verifies a scoped ticket", () => {
   const ticket = createTicket(claims, secret);
-  assert.deepEqual(verifyTicket(ticket, secret, 1900000000), { v: 1, ...claims });
+  assert.deepEqual(verifyTicket(ticket, secret, 1900000000), { v: 2, ...claims });
 });
 
 test("rejects a modified ticket", () => {
@@ -29,6 +36,7 @@ test("rejects expired and unsafe identifiers", () => {
   const ticket = createTicket({ ...claims, exp: 100 }, secret);
   assert.throws(() => verifyTicket(ticket, secret, 101), /ticket_expired/);
   assert.throws(() => createTicket({ ...claims, student_code: "../S001" }, secret), /student_code_invalid/);
+  assert.throws(() => createTicket({ ...claims, condition: "reactive" }, secret), /condition_invalid/);
 });
 
 test("binds a Coze conversation session to one upload identity", () => {

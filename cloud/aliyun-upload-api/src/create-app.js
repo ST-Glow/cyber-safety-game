@@ -43,6 +43,7 @@ function cozeErrorStatus(code) {
     || code === "agent_state_invalid"
   ) return 400;
   if (code === "coze_not_configured" || code === "agent_prompts_not_configured") return 503;
+  if (code === "agent_condition_forbidden") return 403;
   return 502;
 }
 
@@ -127,11 +128,13 @@ function createApp(options = {}) {
       mode: cloud.mode,
       coze_configured: coze.configured,
       coze_auth_mode: coze.authMode || "custom",
-      coze_bot_id: coze.botId || config.cozeBotId,
+      coze_bot_configured: Boolean(coze.botId || config.cozeBotId),
       ai_profiles_configured: config.aiPromptsConfigured === true,
       ai_profile_count: config.aiPromptsConfigured ? Object.keys(config.aiLevelPrompts || {}).length : 0,
       ai_profile_diagnostic: config.aiPromptsConfigured ? "" : config.aiPromptConfigError,
       api_version: "coze_level_assistant_v3",
+      deployment: process.env.FC_FUNCTION_NAME ? "aliyun_fc" : (process.env.VERCEL ? "vercel" : "local"),
+      region: process.env.FC_REGION || process.env.ALIBABA_CLOUD_REGION_ID || "",
       time: new Date().toISOString(),
     });
   });
@@ -171,7 +174,13 @@ function createApp(options = {}) {
         return;
       }
       const trigger = normalizeTrigger(body.trigger);
+      if (claims.condition === "passive" && trigger !== "manual") {
+        errorResponse(response, 403, "agent_condition_forbidden", "被动组只允许学生主动求助");
+        return;
+      }
       const state = sanitizeAgentState(levelId, body.state);
+      state.condition = claims.condition;
+      state.study_version = claims.study_version;
       const message = String(body.message || "").trim();
       if (!message || message.length > 800) {
         errorResponse(response, 400, "coze_message_invalid", "问题内容应为 1 至 800 个字符");
@@ -327,8 +336,10 @@ function createApp(options = {}) {
       validateFile(recording, "recording");
       const status = recordingAvailable ? "complete" : "saved_with_warning";
       const manifest = {
-        schema_version: 1,
+        schema_version: 2,
         status,
+        study_version: claims.study_version,
+        condition: claims.condition,
         class_id: claims.class_id,
         student_code: claims.student_code,
         upload_id: claims.upload_id,

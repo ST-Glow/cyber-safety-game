@@ -3,6 +3,7 @@ extends SceneTree
 const GAME_MANAGER := preload("res://scripts/game_manager.gd")
 const SPINNER_MANAGER := preload("res://scripts/levels/spinner_race/spinner_race_manager.gd")
 const PARTY_MANAGER := preload("res://scripts/party/party_mode_manager.gd")
+const ASSISTANT_PANEL := preload("res://scripts/ui/ai_assistant_panel.gd")
 
 var failures: Array[String] = []
 
@@ -65,6 +66,26 @@ func _run_test() -> void:
 	party.set_assistant_open(false)
 	_expect(not paused, "party assistant resumes without locking the game")
 	party.queue_free()
+
+	service.configure_for_test("http://127.0.0.1:8787", "test-ticket")
+	var invitation_manager = GAME_MANAGER.new()
+	root.add_child(invitation_manager)
+	invitation_manager.prepare_run()
+	invitation_manager.start_run()
+	var panel = ASSISTANT_PANEL.new()
+	root.add_child(panel)
+	await process_frame
+	panel.configure("ai_training_ground", func() -> Dictionary: return {})
+	panel.open_changed.connect(invitation_manager.set_assistant_open)
+	_expect(panel.show_help_offer({"trigger_reason": "no_progress"}), "lightweight invitation can be shown")
+	_expect(panel.is_invitation_visible() and not panel.overlay.visible and not paused, "invitation does not pause gameplay or open the AI overlay")
+	panel.call("_accept_offer")
+	_expect(panel.overlay.visible and paused, "accepting the invitation opens AI and pauses gameplay")
+	panel.close()
+	service.clear_level_session("ai_training_ground")
+	_expect(not paused, "closing accepted support resumes gameplay")
+	panel.queue_free()
+	invitation_manager.queue_free()
 	call_deferred("_finish")
 
 

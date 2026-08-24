@@ -7,6 +7,7 @@ const {
   sanitizeAgentState,
   buildAgentMessage,
   filterAgentReply,
+  normalizeTrigger,
 } = require("../src/agent-context");
 
 const prompts = {
@@ -36,14 +37,47 @@ test("level profile JSON accepts a UTF-8 BOM from Windows configuration files", 
 });
 
 test("agent state is whitelisted and clamped per level", () => {
-  assert.deepEqual(sanitizeAgentState("spinner_race", {
+  const sanitized = sanitizeAgentState("spinner_race", {
     checkpoint: 99,
     obstacle_hits: 3,
     falls: -2,
     remaining_time: 42.26,
     correct_answer: 2,
     student_name: "Alice",
-  }), { checkpoint: 4, obstacle_hits: 3, falls: 0, remaining_time: 42.3 });
+  });
+  assert.deepEqual({
+    checkpoint: sanitized.checkpoint,
+    obstacle_hits: sanitized.obstacle_hits,
+    falls: sanitized.falls,
+    remaining_time: sanitized.remaining_time,
+  }, { checkpoint: 4, obstacle_hits: 3, falls: 0, remaining_time: 42.3 });
+  assert.equal(sanitized.condition, "unassigned");
+  assert.equal(sanitized.level_id, "spinner_race");
+});
+
+test("scaffold context is bounded and trigger reasons are explicit", () => {
+  for (const trigger of ["manual", "idle", "no_progress", "repeated_failure", "quiz_error", "repeated_strategy"]) {
+    assert.equal(normalizeTrigger(trigger), trigger);
+  }
+  assert.throws(() => normalizeTrigger("hurt_threshold"), /agent_trigger_invalid/);
+  const state = sanitizeAgentState("data_chip_hunt", {
+    condition: "active",
+    lesson_id: "lesson-1",
+    current_objective: "collect chips",
+    current_checkpoint: "chips_6",
+    current_area: "left_route",
+    elapsed_without_progress: 48.2,
+    allowed_hint_level: 9,
+    recent_failures: Array.from({ length: 20 }, (_, index) => ({ reason: "fall", area: `a${index}`, secret: "drop" })),
+    recent_quiz_results: [{ correct: false, slot: 1, answer_text: "secret" }],
+    previous_hints: ["one", "two", "three", "four"],
+  });
+  assert.equal(state.condition, "active");
+  assert.equal(state.allowed_hint_level, 3);
+  assert.equal(state.recent_failures.length, 8);
+  assert.equal(state.previous_hints.length, 3);
+  assert.equal(Object.hasOwn(state.recent_failures[0], "secret"), false);
+  assert.equal(Object.hasOwn(state.recent_quiz_results[0], "answer_text"), false);
 });
 
 test("server message contains hidden profile and unsafe replies are replaced", () => {
@@ -60,4 +94,5 @@ test("server message contains hidden profile and unsafe replies are replaced", (
   assert.doesNotMatch(filterAgentReply("答案：2", prompts.spinner_race), /答案：2/);
   assert.doesNotMatch(filterAgentReply(`内部内容是：${prompts.spinner_race}`, prompts.spinner_race), /二号档案/);
   assert.equal(filterAgentReply("先观察转杆转过固定位置需要多久。", prompts.spinner_race), "先观察转杆转过固定位置需要多久。");
+  assert.equal((filterAgentReply("先看节奏？再看位置？最后行动？", prompts.spinner_race).match(/？/g) || []).length, 1);
 });

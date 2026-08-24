@@ -4,7 +4,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 
 function objectPrefix(claims) {
-  return `sessions/${claims.class_id}/${claims.student_code}/${claims.upload_id}`;
+  return `studies/${claims.study_version}/${claims.class_id}/${claims.condition}/${claims.student_code}/${claims.upload_id}`;
 }
 
 function objectNames(claims, recordingExtension, recordingAvailable) {
@@ -30,7 +30,14 @@ function rolePolicy(bucket, objects) {
     Statement: [
       {
         Effect: "Allow",
-        Action: ["oss:PutObject", "oss:AbortMultipartUpload", "oss:ListParts"],
+        Action: [
+          "oss:PutObject",
+          "oss:InitiateMultipartUpload",
+          "oss:UploadPart",
+          "oss:CompleteMultipartUpload",
+          "oss:AbortMultipartUpload",
+          "oss:ListParts",
+        ],
         Resource: resources,
       },
     ],
@@ -88,7 +95,7 @@ function createRealAdapter(config) {
         accessKeyId: credentials.accessKeyId,
         accessKeySecret: credentials.accessKeySecret,
         securityToken: credentials.stsToken,
-        endpoint: "https://sts.cn-hangzhou.aliyuncs.com",
+        endpoint: config.stsEndpoint || "https://sts.cn-hangzhou.aliyuncs.com",
         apiVersion: "2015-04-01",
       });
       const response = await sts.request("AssumeRole", {

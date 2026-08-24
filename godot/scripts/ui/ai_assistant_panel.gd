@@ -2,7 +2,8 @@ class_name AiAssistantPanel
 extends Control
 
 signal open_changed(open: bool)
-signal reminder_decided(accepted: bool)
+signal reminder_decided(choice: String)
+signal manual_opened
 
 const UI_FONT: FontFile = preload("res://assets/ui/fonts/noto_sans_sc_ui_600.ttf")
 const AUTO_MESSAGE := "我连续遇到了几次困难，请根据当前进度给我一个简短提示，不要直接给出选择题答案。"
@@ -18,8 +19,12 @@ var input: LineEdit
 var send_button: Button
 var accept_button: Button
 var decline_button: Button
+var later_button: Button
+var invitation_panel: PanelContainer
+var invitation_label: Label
 var _open: bool = false
 var _offer_mode: bool = false
+var _offer_context: Dictionary = {}
 
 
 func _ready() -> void:
@@ -50,24 +55,34 @@ func set_gameplay_available(value: bool) -> void:
 		close()
 
 
-func show_help_offer() -> bool:
-	if not is_available() or _open:
+func show_help_offer(context: Dictionary = {}) -> bool:
+	if not is_available() or _open or is_invitation_visible():
 		return false
 	_offer_mode = true
-	title_label.text = "需要一点提示吗？"
-	response_label.text = "你已经连续遇到几次困难。AI 助手可以根据当前进度给一个分层提示，不会直接公布答案。"
-	accept_button.visible = true
-	decline_button.visible = true
-	input.visible = false
-	send_button.visible = false
-	_set_open(true)
+	_offer_context = context.duplicate(true)
+	var reason := String(context.get("trigger_reason", ""))
+	invitation_label.text = "需要一点提示吗？\n%s" % _offer_reason_text(reason)
+	invitation_panel.visible = true
 	return true
+
+
+func hide_help_offer() -> void:
+	if invitation_panel:
+		invitation_panel.visible = false
+	_offer_mode = false
+	_offer_context.clear()
+
+
+func is_invitation_visible() -> bool:
+	return invitation_panel != null and invitation_panel.visible
 
 
 func open_manual() -> void:
 	if not is_available():
 		return
+	hide_help_offer()
 	_show_chat()
+	manual_opened.emit()
 	_set_open(true)
 
 
@@ -77,6 +92,7 @@ func close() -> void:
 
 func reset_run() -> void:
 	close()
+	hide_help_offer()
 	response_label.text = "说说你卡在哪里，我会先给一个观察方向。"
 	input.clear()
 
@@ -96,6 +112,45 @@ func _build_ui() -> void:
 	assistant_button.add_theme_stylebox_override("hover", _style(Color("8c82ff"), 16))
 	assistant_button.pressed.connect(open_manual)
 	add_child(assistant_button)
+
+	invitation_panel = PanelContainer.new()
+	invitation_panel.name = "ScaffoldInvitation"
+	invitation_panel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	invitation_panel.position = Vector2(-430.0, -260.0)
+	invitation_panel.size = Vector2(405.0, 150.0)
+	invitation_panel.add_theme_stylebox_override("panel", _style(Color("172447"), 18))
+	invitation_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	var invitation_margin := MarginContainer.new()
+	invitation_margin.add_theme_constant_override("margin_left", 18)
+	invitation_margin.add_theme_constant_override("margin_right", 18)
+	invitation_margin.add_theme_constant_override("margin_top", 14)
+	invitation_margin.add_theme_constant_override("margin_bottom", 14)
+	invitation_panel.add_child(invitation_margin)
+	var invitation_box := VBoxContainer.new()
+	invitation_box.add_theme_constant_override("separation", 10)
+	invitation_margin.add_child(invitation_box)
+	invitation_label = Label.new()
+	invitation_label.text = "需要一点提示吗？"
+	invitation_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	invitation_label.add_theme_font_size_override("font_size", 17)
+	invitation_box.add_child(invitation_label)
+	var invitation_actions := HBoxContainer.new()
+	invitation_actions.add_theme_constant_override("separation", 8)
+	invitation_box.add_child(invitation_actions)
+	accept_button = Button.new()
+	accept_button.text = "需要提示"
+	accept_button.pressed.connect(_accept_offer)
+	invitation_actions.add_child(accept_button)
+	decline_button = Button.new()
+	decline_button.text = "我想自己试试"
+	decline_button.pressed.connect(_decline_offer)
+	invitation_actions.add_child(decline_button)
+	later_button = Button.new()
+	later_button.text = "稍后提醒"
+	later_button.pressed.connect(_dismiss_offer)
+	invitation_actions.add_child(later_button)
+	invitation_panel.visible = false
+	add_child(invitation_panel)
 
 	overlay = ColorRect.new()
 	overlay.name = "AssistantOverlay"
@@ -150,14 +205,6 @@ func _build_ui() -> void:
 	actions.alignment = BoxContainer.ALIGNMENT_END
 	actions.add_theme_constant_override("separation", 12)
 	box.add_child(actions)
-	decline_button = Button.new()
-	decline_button.text = "继续挑战"
-	decline_button.pressed.connect(_decline_offer)
-	actions.add_child(decline_button)
-	accept_button = Button.new()
-	accept_button.text = "获取提示"
-	accept_button.pressed.connect(_accept_offer)
-	actions.add_child(accept_button)
 	send_button = Button.new()
 	send_button.text = "发送追问"
 	send_button.pressed.connect(_send_message)
@@ -167,8 +214,6 @@ func _build_ui() -> void:
 func _show_chat() -> void:
 	_offer_mode = false
 	title_label.text = "AI 学习助手"
-	accept_button.visible = false
-	decline_button.visible = false
 	input.visible = true
 	send_button.visible = true
 
@@ -183,14 +228,22 @@ func _set_open(value: bool) -> void:
 
 
 func _accept_offer() -> void:
-	reminder_decided.emit(true)
+	var trigger := String(_offer_context.get("trigger_reason", "no_progress"))
+	reminder_decided.emit("accepted")
+	invitation_panel.visible = false
 	_show_chat()
-	_send(AUTO_MESSAGE, "hurt_threshold")
+	_set_open(true)
+	_send(AUTO_MESSAGE, trigger)
 
 
 func _decline_offer() -> void:
-	reminder_decided.emit(false)
-	close()
+	reminder_decided.emit("rejected")
+	hide_help_offer()
+
+
+func _dismiss_offer() -> void:
+	reminder_decided.emit("dismissed")
+	hide_help_offer()
 
 
 func _send_message() -> void:
@@ -252,3 +305,16 @@ func _style(color: Color, radius: int) -> StyleBoxFlat:
 
 func _service() -> Node:
 	return get_node("/root/AiAssistantService")
+
+
+func _offer_reason_text(reason: String) -> String:
+	match reason:
+		"idle":
+			return "如果你正在思考，可以先继续尝试，也可以让我澄清当前规则。"
+		"no_progress":
+			return "看起来这一段暂时没有新的进展，我可以给一个简短方向。"
+		"quiz_error":
+			return "这道题已经尝试了几次，我可以帮你梳理判断思路。"
+		"repeated_failure", "repeated_strategy":
+			return "这一处连续遇到困难，我可以提供一个不泄露答案的小提示。"
+	return "我可以根据当前目标提供一个简短提示。"

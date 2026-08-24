@@ -35,7 +35,8 @@ $tests = @(
     "level_flow_smoke_test.gd",
     "pause_coordinator_smoke_test.gd",
     "experiment_session_smoke_test.gd",
-    "ai_assistant_smoke_test.gd"
+    "ai_assistant_smoke_test.gd",
+    "scaffold_controller_smoke_test.gd"
 )
 
 $failedTests = [System.Collections.Generic.List[string]]::new()

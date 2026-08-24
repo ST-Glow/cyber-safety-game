@@ -1,5 +1,7 @@
 extends PartyLevelBase
 
+const SCAFFOLD_CONTROLLER_SCRIPT := preload("res://scripts/scaffolding/scaffold_controller.gd")
+
 const MODE_MANAGER_SCRIPT := preload("res://scripts/party/party_mode_manager.gd")
 const MODE_UI_SCRIPT := preload("res://scripts/party/party_mode_ui.gd")
 const PATH_HAZARD_SCENE := preload("res://scenes/party/path_hazard.tscn")
@@ -52,8 +54,7 @@ var hit_cooldown_left: float = 0.0
 var pending_fall_respawn: bool = false
 var _quiz_pause_token: int = 0
 var _result_pause_token: int = 0
-var _assistant_prompted: bool = false
-var _assistant_pending: bool = false
+var scaffold_controller
 
 
 func _ready() -> void:
@@ -73,11 +74,14 @@ func _ready() -> void:
 	_spawn_bombs()
 	_build_ui()
 	_connect_signals()
+	_build_scaffold_controller()
 	_reset_level()
 
 
 func _process(delta: float) -> void:
 	_update_party_camera(delta)
+	if scaffold_controller and mode_manager and mode_manager.is_running() and Vector2(player.velocity.x, player.velocity.z).length() > 0.2:
+		scaffold_controller.notify_basic_operation({"action": "move"})
 	hit_cooldown_left = maxf(0.0, hit_cooldown_left - delta)
 	if mode_manager == null or mode_ui == null:
 		return
@@ -304,6 +308,21 @@ func _build_ui() -> void:
 	mode_ui.configure_assistant(LEVEL_ID, _get_ai_assistant_state)
 
 
+func _build_scaffold_controller() -> void:
+	scaffold_controller = SCAFFOLD_CONTROLLER_SCRIPT.new()
+	scaffold_controller.name = "ScaffoldController"
+	add_child(scaffold_controller)
+	scaffold_controller.configure(
+		LEVEL_ID,
+		"bias_and_human_review",
+		"每 20 秒完成当前波次信号校准，躲避机关并坚持 60 秒",
+		_get_ai_assistant_state,
+		_is_scaffold_safe,
+		mode_ui.assistant_widget
+	)
+	mode_ui.configure_assistant(LEVEL_ID, scaffold_controller.get_ai_context)
+
+
 func _connect_signals() -> void:
 	_connect_party_player_events(LEVEL_ID)
 	player.fell.connect(_on_player_fell)
@@ -312,7 +331,6 @@ func _connect_signals() -> void:
 	mode_manager.run_started.connect(_on_run_started)
 	mode_manager.time_expired.connect(_on_time_expired)
 	mode_manager.run_finished.connect(_on_run_finished)
-	mode_manager.assistance_damage_changed.connect(_on_assistance_damage_changed)
 	mode_ui.quiz_choice_selected.connect(_on_quiz_choice_selected)
 	mode_ui.restart_requested.connect(_on_restart_requested)
 	mode_ui.restart_campaign_requested.connect(_on_restart_campaign_requested)
@@ -327,6 +345,7 @@ func _on_run_started() -> void:
 	mode_ui.hide_countdown()
 	player.set_controls_enabled(true)
 	_set_wave(1)
+	scaffold_controller.begin_run()
 
 
 func _open_wave_quiz(slot: int, question: QuizQuestion) -> void:
@@ -338,6 +357,7 @@ func _open_wave_quiz(slot: int, question: QuizQuestion) -> void:
 	player.set_controls_enabled(false)
 	_quiz_pause_token = get_node("/root/PauseCoordinator").acquire(self, &"quiz")
 	mode_ui.show_quiz(question, slot, 2)
+	scaffold_controller.notify_quiz_started()
 
 
 func _on_quiz_choice_selected(selected_index: int) -> void:
@@ -345,6 +365,7 @@ func _on_quiz_choice_selected(selected_index: int) -> void:
 		return
 	var completed_slot := active_quiz_slot
 	var correct := mode_manager.submit_quiz_answer(selected_index, active_question.correct_index)
+	scaffold_controller.notify_quiz_result(correct, {"slot": completed_slot, "selected_index": selected_index})
 	if not correct:
 		mode_ui.show_wrong_answer(selected_index, active_question.explanation)
 		return
@@ -353,6 +374,7 @@ func _on_quiz_choice_selected(selected_index: int) -> void:
 	mode_ui.hide_quiz()
 	get_node("/root/PauseCoordinator").release(_quiz_pause_token)
 	_quiz_pause_token = 0
+	scaffold_controller.notify_quiz_ended()
 	_set_wave(completed_slot + 1)
 	player.set_controls_enabled(true)
 
@@ -364,6 +386,9 @@ func _on_calibration_completed(wave_index: int) -> void:
 	if calibration_index < 0 or calibration_index >= wave_calibrated.size() or wave_calibrated[calibration_index]:
 		return
 	wave_calibrated[calibration_index] = true
+	scaffold_controller.notify_basic_operation({"action": "calibrate", "wave": wave_index})
+	scaffold_controller.notify_progress({"wave": wave_index, "calibrated": true})
+	scaffold_controller.mark_safe_window()
 	EXPERIMENT_EVENTS.record(self, "signal_calibrated", LEVEL_ID, {
 		"wave": wave_index,
 		"elapsed_seconds": snappedf(mode_manager.elapsed_seconds, 0.01),
@@ -391,6 +416,7 @@ func _on_pusher_hit(hit_player: PlayerController, push_direction: Vector3) -> vo
 		return
 	if not mode_manager.register_hazard_hit():
 		return
+	scaffold_controller.notify_failure("repeated_failure", {"area": _current_area(), "kind": "pusher_hit"})
 	hit_cooldown_left = HIT_COOLDOWN
 	var direction := push_direction.normalized()
 	player.begin_knockback(direction * 7.2 + Vector3.UP * 3.4, 0.45)
@@ -408,6 +434,7 @@ func _apply_radial_hit(source_position: Vector3, horizontal_force: float, vertic
 		return
 	if not mode_manager.register_hazard_hit():
 		return
+	scaffold_controller.notify_failure("repeated_failure", {"area": _current_area(), "kind": "hazard_hit"})
 	hit_cooldown_left = HIT_COOLDOWN
 	var direction := player.global_position - source_position
 	direction.y = 0.0
@@ -422,6 +449,7 @@ func _on_player_fell() -> void:
 	if not mode_manager.register_fall():
 		return
 	pending_fall_respawn = true
+	scaffold_controller.notify_failure("repeated_failure", {"area": _current_area(), "kind": "fall"})
 	player.begin_knockback(Vector3(0.0, 2.5, 0.0), 0.42)
 	_start_party_camera_shake(0.38, 0.2)
 
@@ -434,7 +462,7 @@ func _on_knockback_finished() -> void:
 		_reset_party_camera()
 	elif mode_manager.is_running():
 		player.set_controls_enabled(true)
-	_try_show_assistant_reminder()
+	scaffold_controller.mark_safe_window()
 
 
 func _on_time_expired() -> void:
@@ -456,6 +484,7 @@ func _fail_missing_calibration(wave_index: int) -> void:
 
 
 func _on_run_finished(result: Dictionary) -> void:
+	scaffold_controller.end_run()
 	if _result_pause_token == 0:
 		_result_pause_token = get_node("/root/PauseCoordinator").acquire(self, &"result")
 	_set_all_hazards_inactive()
@@ -476,6 +505,10 @@ func _on_run_finished(result: Dictionary) -> void:
 		metrics += "\n失败原因：%s" % failure_reason
 	var campaign_summary := CampaignSession.get_campaign_summary() if CampaignSession.is_campaign_run() else {}
 	mode_ui.show_result(result, metrics, campaign_summary)
+	if CampaignSession.is_campaign_run() and int(campaign_summary.get("completed_levels", 0)) == int(campaign_summary.get("total_levels", -1)):
+		var web_bridge := get_node_or_null("/root/ExperimentWebBridge")
+		if web_bridge:
+			web_bridge.call_deferred("finalize_campaign", campaign_summary)
 
 
 func _on_restart_requested() -> void:
@@ -492,8 +525,8 @@ func _reset_level() -> void:
 	get_node("/root/PauseCoordinator").release_owner(self)
 	_quiz_pause_token = 0
 	_result_pause_token = 0
-	_assistant_prompted = false
-	_assistant_pending = false
+	if scaffold_controller:
+		scaffold_controller.reset_level()
 	get_node("/root/AiAssistantService").clear_level_session(LEVEL_ID)
 	current_wave = 0
 	wave_calibrated = [false, false, false]
@@ -526,20 +559,6 @@ func _on_assistant_toggled(open: bool) -> void:
 	player.set_controls_enabled(mode_manager.is_running())
 
 
-func _on_assistance_damage_changed(total: int) -> void:
-	if total >= 3 and not _assistant_prompted and mode_ui.assistant_widget.is_available():
-		_assistant_prompted = true
-		_assistant_pending = true
-
-
-func _try_show_assistant_reminder() -> void:
-	if not _assistant_pending or mode_manager.state != PartyModeManager.RunState.RUNNING:
-		return
-	_assistant_pending = false
-	if mode_ui.show_assistant_reminder():
-		player.set_controls_enabled(false)
-
-
 func _get_ai_assistant_state() -> Dictionary:
 	return {
 		"wave": maxi(current_wave, 1),
@@ -547,7 +566,18 @@ func _get_ai_assistant_state() -> Dictionary:
 		"hazard_hits": mode_manager.hazard_hits,
 		"falls": mode_manager.falls,
 		"remaining_time": snappedf(mode_manager.time_left, 0.1),
+		"current_checkpoint": "wave_%d" % maxi(current_wave, 1),
+		"current_area": _current_area(),
+		"current_choice": {"wave": maxi(current_wave, 1), "calibrated": wave_calibrated[maxi(current_wave, 1) - 1]},
 	}
+
+
+func _current_area() -> String:
+	return "wave_%d_arena" % maxi(current_wave, 1)
+
+
+func _is_scaffold_safe() -> bool:
+	return mode_manager.is_running() and player.is_on_floor() and not player.is_dashing() and not player.is_knocked_back() and Vector2(player.velocity.x, player.velocity.z).length() < 1.5
 
 
 func _wave_for_time(elapsed: float) -> int:

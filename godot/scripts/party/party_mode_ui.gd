@@ -114,8 +114,8 @@ func configure_assistant(level_id: String, state_provider: Callable) -> void:
 	assistant_widget.configure(level_id, state_provider)
 
 
-func show_assistant_reminder() -> bool:
-	return assistant_widget.show_help_offer()
+func show_assistant_reminder(context: Dictionary = {}) -> bool:
+	return assistant_widget.show_help_offer(context)
 
 
 func reset_assistant() -> void:

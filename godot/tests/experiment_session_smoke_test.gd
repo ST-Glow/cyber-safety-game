@@ -17,6 +17,7 @@ func _run_test() -> void:
 	experiment.call("reset_session", "active")
 	var metadata: Dictionary = experiment.call("get_metadata")
 	_expect(metadata.get("condition", "") == "active", "active intervention condition can be assigned")
+	_expect(experiment.call("set_intervention_condition", "passive"), "passive intervention condition can be assigned")
 	_expect(not metadata.has("student_name") and not metadata.has("student_id"), "session metadata contains no student identity")
 	_expect(not experiment.call("set_intervention_condition", "invalid"), "unknown intervention conditions are rejected")
 
@@ -51,8 +52,18 @@ func _run_test() -> void:
 	]:
 		_expect(event_names.has(required_name), "%s is recorded" % required_name)
 	var latest_event: Dictionary = snapshot.get("events", [])[-1]
-	_expect(latest_event.get("schema_version", 0) == 1, "events carry a stable schema version")
+	_expect(latest_event.get("schema_version", 0) == 2, "events carry a stable schema version")
 	_expect(latest_event.has("elapsed_msec") and latest_event.has("payload"), "events contain relative time and payload")
+	experiment.call("reset_level_time", "event_test")
+	experiment.call("set_activity_mode", "event_test", "gameplay")
+	await create_timer(0.02).timeout
+	experiment.call("set_activity_mode", "event_test", "quiz")
+	await create_timer(0.02).timeout
+	experiment.call("set_activity_mode", "event_test", "scaffold")
+	await create_timer(0.02).timeout
+	var timing: Dictionary = experiment.call("get_level_time", "event_test")
+	_expect(float(timing.gameplay_time) > 0.0 and float(timing.quiz_time) > 0.0 and float(timing.scaffold_time) > 0.0, "gameplay, quiz, and scaffold time are tracked separately")
+	experiment.call("record_level_time_summary", "event_test", "v1")
 	call_deferred("_finish")
 
 

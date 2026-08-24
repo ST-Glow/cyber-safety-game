@@ -18,12 +18,13 @@ function loadConfig(environment = process.env) {
     ossBucket: environment.OSS_BUCKET || "",
     ossRoleArn: environment.OSS_UPLOAD_ROLE_ARN || "",
     ossInternal: environment.OSS_INTERNAL === "true",
+    stsEndpoint: String(environment.STS_ENDPOINT || "https://sts.cn-hangzhou.aliyuncs.com").replace(/\/$/, ""),
     mockRoot: environment.MOCK_OSS_ROOT || "",
     publicBaseUrl: String(environment.PUBLIC_BASE_URL || "").replace(/\/$/, ""),
     cozeApiToken: environment.COZE_API_TOKEN || "",
-    cozeBotId: "7647799189921284146",
-    cozeOauthClientId: environment.COZE_JWT_OAUTH_CLIENT_ID || "1167033540105",
-    cozeOauthPublicKeyId: environment.COZE_JWT_OAUTH_PUBLIC_KEY_ID || "HzkdmJpFJHuubOaaG3C6bmAjC0oLY6vX2AgtVz5X4ho",
+    cozeBotId: environment.COZE_BOT_ID || "",
+    cozeOauthClientId: environment.COZE_JWT_OAUTH_CLIENT_ID || "",
+    cozeOauthPublicKeyId: environment.COZE_JWT_OAUTH_PUBLIC_KEY_ID || "",
     cozeOauthPrivateKey: environment.COZE_JWT_OAUTH_PRIVATE_KEY || "",
     aiLevelPrompts: levelPromptConfig.prompts,
     aiPromptsConfigured: levelPromptConfig.configured,
@@ -48,6 +49,13 @@ function validateConfig(config) {
     ]) {
       if (!value) throw new Error(`${key} is required outside local mock mode`);
     }
+    if (!/^https:\/\/sts(?:[.-][a-z0-9-]+)*\.aliyuncs\.com$/i.test(config.stsEndpoint)) {
+      throw new Error("STS_ENDPOINT must be an Alibaba Cloud STS HTTPS endpoint");
+    }
+  }
+  const cozeCredentialConfigured = Boolean(config.cozeApiToken || config.cozeOauthPrivateKey || config.cozeOauthClientId || config.cozeOauthPublicKeyId);
+  if (cozeCredentialConfigured && !config.cozeBotId) {
+    throw new Error("COZE_BOT_ID is required when Coze credentials are configured");
   }
   return config;
 }
