@@ -68,7 +68,8 @@ jobs:
       - name: Import Godot resources and build the class cache
         shell: bash
         timeout-minutes: 15
-        run: "$PWD/.godot-bin/godot" --headless --path "$PWD/godot" --import
+        run: |
+          "$PWD/.godot-bin/godot" --headless --path "$PWD/godot" --import
 
       - name: Run Godot regression tests
         shell: pwsh
