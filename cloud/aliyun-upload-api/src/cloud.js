@@ -44,7 +44,22 @@ function rolePolicy(bucket, objects) {
   });
 }
 
-function cloudCredentials() {
+function requestHeader(request, name) {
+  if (!request) return "";
+  if (typeof request.get === "function") return request.get(name) || "";
+  const headers = request.headers || {};
+  return headers[name] || headers[name.toLowerCase()] || "";
+}
+
+function cloudCredentials(request) {
+  const requestCredentials = {
+    accessKeyId: requestHeader(request, "x-fc-access-key-id"),
+    accessKeySecret: requestHeader(request, "x-fc-access-key-secret"),
+    stsToken: requestHeader(request, "x-fc-security-token"),
+  };
+  if (requestCredentials.accessKeyId && requestCredentials.accessKeySecret && requestCredentials.stsToken) {
+    return requestCredentials;
+  }
   return {
     accessKeyId: process.env.ALIBABA_CLOUD_ACCESS_KEY_ID || process.env.ACCESS_KEY_ID,
     accessKeySecret: process.env.ALIBABA_CLOUD_ACCESS_KEY_SECRET || process.env.ACCESS_KEY_SECRET,
@@ -53,25 +68,22 @@ function cloudCredentials() {
 }
 
 function createRealAdapter(config) {
-  let ossClient = null;
-  function client() {
-    if (ossClient) return ossClient;
+  function client(request) {
     const OSS = require("ali-oss");
-    const credentials = cloudCredentials();
+    const credentials = cloudCredentials(request);
     if (!credentials.accessKeyId || !credentials.accessKeySecret) throw new Error("function_role_credentials_missing");
-    ossClient = new OSS({
+    return new OSS({
       region: config.ossRegion,
       bucket: config.ossBucket,
       internal: config.ossInternal,
       authorizationV4: true,
       ...credentials,
     });
-    return ossClient;
   }
 
-  async function head(name) {
+  async function head(name, request) {
     try {
-      const result = await client().head(name);
+      const result = await client(request).head(name);
       const headers = result.res?.headers || {};
       return {
         exists: true,
@@ -87,9 +99,9 @@ function createRealAdapter(config) {
 
   return {
     mode: "real",
-    async assumeRole(claims, objects) {
+    async assumeRole(claims, objects, request) {
       const Core = require("@alicloud/pop-core");
-      const credentials = cloudCredentials();
+      const credentials = cloudCredentials(request);
       if (!config.ossRoleArn) throw new Error("oss_upload_role_arn_missing");
       const sts = new Core({
         accessKeyId: credentials.accessKeyId,
@@ -107,8 +119,8 @@ function createRealAdapter(config) {
       return response.Credentials;
     },
     head,
-    async writeManifest(name, manifest) {
-      await client().put(name, Buffer.from(JSON.stringify(manifest, null, 2), "utf8"), {
+    async writeManifest(name, manifest, request) {
+      await client(request).put(name, Buffer.from(JSON.stringify(manifest, null, 2), "utf8"), {
         headers: { "Content-Type": "application/json" },
       });
     },
@@ -158,4 +170,4 @@ function createCloudAdapter(config) {
   return config.mockRoot ? createMockAdapter(config) : createRealAdapter(config);
 }
 
-module.exports = { createCloudAdapter, objectNames, objectPrefix, rolePolicy };
+module.exports = { cloudCredentials, createCloudAdapter, objectNames, objectPrefix, rolePolicy };

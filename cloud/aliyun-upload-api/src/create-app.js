@@ -294,7 +294,7 @@ function createApp(options = {}) {
       const claims = verifyTicket(request.body.ticket, config.linkSecret);
       const recordingAvailable = request.body.recording_available !== false;
       const objects = objectNames(claims, request.body.recording_extension, recordingAvailable);
-      const manifest = await cloud.head(objects.manifest);
+      const manifest = await cloud.head(objects.manifest, request);
       if (manifest.exists) {
         response.json({ status: "already_completed" });
         return;
@@ -313,7 +313,7 @@ function createApp(options = {}) {
         });
         return;
       }
-      const credentials = await cloud.assumeRole(claims, objects);
+      const credentials = await cloud.assumeRole(claims, objects, request);
       response.json({ mode: "oss", region: config.ossRegion, bucket: config.ossBucket, objects, credentials });
     } catch (error) {
       const status = error.message === "ticket_expired" ? 401 : 400;
@@ -327,9 +327,9 @@ function createApp(options = {}) {
       const recordingAvailable = request.body.recording_available !== false;
       const objects = objectNames(claims, request.body.recording_extension, recordingAvailable);
       const [events, summary, recording] = await Promise.all([
-        cloud.head(objects.events),
-        cloud.head(objects.summary),
-        cloud.head(objects.recording),
+        cloud.head(objects.events, request),
+        cloud.head(objects.summary, request),
+        cloud.head(objects.recording, request),
       ]);
       validateFile(events, "events");
       validateFile(summary, "summary");
@@ -350,7 +350,7 @@ function createApp(options = {}) {
           recording: { name: objects.recording, bytes: recording.bytes, etag: recording.etag },
         },
       };
-      await cloud.writeManifest(objects.manifest, manifest);
+      await cloud.writeManifest(objects.manifest, manifest, request);
       response.json({ status, files: manifest.files });
     } catch (error) {
       errorResponse(response, 409, error.message);
