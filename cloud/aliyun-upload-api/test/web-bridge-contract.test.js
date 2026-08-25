@@ -16,6 +16,15 @@ test("web bridge records only the Godot canvas and has an explicit degradation f
   assert.doesNotMatch(bridge, /getDisplayMedia\s*\(/);
 });
 
+test("web bridge prefers MP4 recording and keeps WebM as a compatibility fallback", () => {
+  const mp4Index = bridge.indexOf('video/mp4;codecs=avc1.42E01E');
+  const webmIndex = bridge.indexOf('video/webm;codecs=vp9');
+  assert.ok(mp4Index >= 0);
+  assert.ok(webmIndex > mp4Index);
+  assert.match(bridge, /state\.recordingExtension = selected\.profile\.extension/);
+  assert.match(bridge, /recordingExtension: state\.recordingBlob \? state\.recordingExtension : "json"/);
+});
+
 test("web bridge persists finalized blobs and multipart checkpoints in IndexedDB", () => {
   assert.match(bridge, /indexedDB\.open/);
   assert.match(bridge, /eventsBlob/);

@@ -16,6 +16,7 @@
     recordingBlob: null,
     recordingMime: "",
     recordingExtension: "webm",
+    recordingProfile: "",
     recordingStatus: "not_started",
     stopPromise: null,
     stopResolve: null,
@@ -201,9 +202,12 @@
 
   function chooseRecorder(stream) {
     const profiles = [
-      { mime: "video/webm;codecs=vp9", name: "webm_vp9" },
-      { mime: "video/webm;codecs=vp8", name: "webm_vp8" },
-      { mime: "video/webm", name: "webm_default" },
+      { mime: "video/mp4;codecs=avc1.42E01E", extension: "mp4", name: "mp4_h264_baseline" },
+      { mime: "video/mp4;codecs=avc1.424028", extension: "mp4", name: "mp4_h264_level4" },
+      { mime: "video/mp4", extension: "mp4", name: "mp4_browser_default" },
+      { mime: "video/webm;codecs=vp9", extension: "webm", name: "webm_vp9" },
+      { mime: "video/webm;codecs=vp8", extension: "webm", name: "webm_vp8" },
+      { mime: "video/webm", extension: "webm", name: "webm_default" },
     ];
     for (const profile of profiles) {
       if (!MediaRecorder.isTypeSupported(profile.mime)) continue;
@@ -238,6 +242,8 @@
       const selected = chooseRecorder(state.stream);
       state.recorder = selected.recorder;
       state.recordingMime = selected.recorder.mimeType || selected.profile.mime;
+      state.recordingExtension = selected.profile.extension;
+      state.recordingProfile = selected.profile.name;
       state.recordingStatus = "recording";
       state.chunks = [];
       state.stopPromise = new Promise((resolve) => {
@@ -257,6 +263,13 @@
         state.stream?.getTracks().forEach((track) => track.stop());
         state.stopResolve?.(state.recordingBlob);
       };
+      logEvent("recording_started", {
+        source: "godot_canvas",
+        mime: state.recordingMime,
+        extension: state.recordingExtension,
+        profile: state.recordingProfile,
+        audio: false,
+      });
       state.recorder.start(2000);
     } catch (error) {
       state.recordingStatus = String(error.message || "recording_start_failed");
@@ -322,6 +335,8 @@
       recording_mode: "godot_canvas",
       recording_status: state.recordingStatus,
       recording_mime: state.recordingMime,
+      recording_extension: state.recordingBlob ? state.recordingExtension : "json",
+      recording_profile: state.recordingProfile,
       recording_bytes: state.recordingBlob ? state.recordingBlob.size : 0,
       assistant_interactions: summarizeAssistantEvents(state.events),
       upload_status_at_packaging: "pending_manifest_confirmation",
@@ -341,7 +356,7 @@
       summaryBlob: new Blob([JSON.stringify(summary, null, 2)], { type: "application/json" }),
       recordingBlob: state.recordingBlob,
       recordingStatusBlob: state.recordingBlob ? null : new Blob([JSON.stringify(recordingStatus, null, 2)], { type: "application/json" }),
-      recordingExtension: state.recordingBlob ? "webm" : "json",
+      recordingExtension: state.recordingBlob ? state.recordingExtension : "json",
       status: "pending",
       finalizedAt: new Date().toISOString(),
     };
