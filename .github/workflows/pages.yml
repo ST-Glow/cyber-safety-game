@@ -65,8 +65,14 @@ jobs:
           unzip -q .godot-bin/templates.tpz -d .godot-bin/templates
           cp -R .godot-bin/templates/templates/. "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/"
 
+      - name: Import Godot resources and build the class cache
+        shell: bash
+        timeout-minutes: 15
+        run: "$PWD/.godot-bin/godot" --headless --path "$PWD/godot" --import
+
       - name: Run Godot regression tests
         shell: pwsh
+        timeout-minutes: 15
         run: ./godot/tests/run_smoke_tests.ps1 -GodotExe "$PWD/.godot-bin/godot"
 
       - name: Validate production deployment variables
@@ -78,6 +84,7 @@ jobs:
 
       - name: Export production Godot Web build
         shell: pwsh
+        timeout-minutes: 15
         run: >-
           ./godot/tools/export_web.ps1
           -GodotExe "$PWD/.godot-bin/godot"
