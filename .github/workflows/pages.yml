@@ -37,7 +37,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: cloud/aliyun-upload-api/package-lock.json
 
@@ -100,8 +100,8 @@ jobs:
         run: |
           node --check godot/build/web/experiment-bridge.js
           test -f godot/build/web/aliyun-oss-sdk.min.js
-          ! rg "cdn\.jsdelivr|unpkg\.com" godot/build/web/index.html
-          rg "productionMode.:true" godot/build/web/index.html
+          ! grep -E "cdn\.jsdelivr|unpkg\.com" godot/build/web/index.html
+          grep -F '"productionMode":true' godot/build/web/index.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
