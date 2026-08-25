@@ -51,6 +51,9 @@ $projectPath = Split-Path -Parent $PSScriptRoot
 $repositoryPath = Split-Path -Parent $projectPath
 $outputFolder = Join-Path $projectPath "build\web"
 $outputPath = Join-Path $outputFolder "index.html"
+if (-not (Test-Path -LiteralPath $outputFolder -PathType Container)) {
+    New-Item -ItemType Directory -Path $outputFolder -Force | Out-Null
+}
 & $GodotExe --headless --path $projectPath --export-debug Web $outputPath
 if ($LASTEXITCODE -ne 0) {
     throw "Godot Web export failed with exit code $LASTEXITCODE"
