@@ -320,9 +320,8 @@ func _ai_state() -> Dictionary:
 	return {
 		"current_area": "DigComp 3.0 能力大厅",
 		"current_checkpoint": "选择四类任务",
-		"completed_levels": DigCompSession.top_level_results.keys(),
-		"selection_order": DigCompSession.selection_order.duplicate(),
-		"instruction": "帮助学生明确目标、比较策略和检查依据；不要直接给出题目答案、拼图位置或匹配组合。",
+		"completed_tasks": DigCompSession.top_level_results.size(),
+		"selected_tasks": DigCompSession.selection_order.size(),
 	}
 
 

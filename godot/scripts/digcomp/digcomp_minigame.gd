@@ -345,12 +345,15 @@ func _measurement(task_id: String, task_type: String, area_id: String, correct: 
 
 
 func _ai_state() -> Dictionary:
-	return {
+	var state := {
 		"current_area": _title(),
 		"current_checkpoint": _progress_text(),
-		"current_choice": {"matching_left": matching_left_selected, "matching_right": matching_right_selected, "judgment_index": judgment_index},
-		"instruction": "只帮助学生明确目标、检查依据、比较策略并反思；不得泄露正确选项、拼图位置或匹配答案。",
 	}
+	if game_mode == "image_judgment":
+		state.merge({"case_index": mini(judgment_index + 1, 10), "total_cases": 10, "risk": 0, "combo": 0, "evidence_scanned": false})
+	else:
+		state.merge({"repaired_items": matching_locked.size(), "total_items": 10, "round": 1, "combo": 0, "energy": 100})
+	return state
 
 
 func _record(event_name: String, payload: Dictionary) -> void:

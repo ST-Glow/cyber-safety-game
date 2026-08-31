@@ -22,7 +22,7 @@ const start = Number(argument("start", "1"));
 const prefix = argument("prefix", "P").trim().toUpperCase();
 const output = argument("output");
 const hours = Number(argument("hours", "12"));
-const studyVersion = argument("study-version", "godot-v1").trim();
+const studyVersion = argument("study-version", "digcomp-v1").trim();
 const seed = argument("seed", classId).trim();
 const secret = process.env.UPLOAD_LINK_SECRET || "";
 

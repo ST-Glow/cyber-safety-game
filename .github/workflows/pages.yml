@@ -29,7 +29,8 @@ jobs:
       GODOT_VERSION: 4.7.1
       PRIMARY_API_BASE_URL: ${{ vars.PRIMARY_API_BASE_URL }}
       FALLBACK_API_BASE_URL: ${{ vars.FALLBACK_API_BASE_URL }}
-      STUDY_VERSION: ${{ vars.GODOT_STUDY_VERSION || 'godot-v1' }}
+      STUDY_VERSION: ${{ vars.GODOT_STUDY_VERSION || 'digcomp-v1' }}
+      RESEARCH_CONTACT: ${{ vars.RESEARCH_CONTACT }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -81,6 +82,7 @@ jobs:
         run: |
           test -n "$PRIMARY_API_BASE_URL"
           test -n "$FALLBACK_API_BASE_URL"
+          test -n "$RESEARCH_CONTACT"
           test "$PRIMARY_API_BASE_URL" != "$FALLBACK_API_BASE_URL"
 
       - name: Export production Godot Web build
@@ -93,6 +95,7 @@ jobs:
           -FallbackApiBaseUrl "$env:FALLBACK_API_BASE_URL"
           -StudyVersion "$env:STUDY_VERSION"
           -BuildVersion "$env:GITHUB_SHA"
+          -ResearchContact "$env:RESEARCH_CONTACT"
           -ProductionMode
 
       - name: Run static release checks
@@ -102,6 +105,9 @@ jobs:
           test -f godot/build/web/aliyun-oss-sdk.min.js
           ! grep -E "cdn\.jsdelivr|unpkg\.com" godot/build/web/index.html
           grep -F '"productionMode":true' godot/build/web/index.html
+          grep -F '"deploymentStage":"production"' godot/build/web/index.html
+          grep -F '"studyVersion":"digcomp-v1"' godot/build/web/index.html
+          ! grep -F '(DEBUG)' godot/build/web/index.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

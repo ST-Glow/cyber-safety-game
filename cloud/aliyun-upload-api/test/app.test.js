@@ -14,6 +14,10 @@ const TEST_LEVEL_PROMPTS = Object.freeze({
   spinner_race: "第二关隐藏教学档案",
   data_chip_hunt: "第三关隐藏教学档案",
   signal_bomb_survival: "第四关隐藏教学档案",
+  digcomp_hub: "能力大厅隐藏教学档案",
+  level_2_puzzle: "拼图隐藏教学档案",
+  level_3_matching: "匹配隐藏教学档案",
+  level_4_image_judgment: "图像判断隐藏教学档案",
 });
 const STUDY_CLAIMS = Object.freeze({
   study_version: "godot-v1",
@@ -147,6 +151,9 @@ test("Coze proxy authenticates the student and preserves a signed conversation",
   await new Promise((resolve) => server.once("listening", resolve));
   context.after(() => server.close());
   const base = `http://127.0.0.1:${server.address().port}`;
+  const health = await (await fetch(`${base}/api/health`)).json();
+  assert.equal(health.ai_profiles_configured, true);
+  assert.equal(health.ai_profile_count, 8);
   const ticket = createTicket({
     ...STUDY_CLAIMS,
     class_id: "CLASS-5A",

@@ -848,7 +848,15 @@ func _elapsed_seconds() -> float:
 
 
 func _ai_state() -> Dictionary:
-	return {"current_area":"AI协作安全审查站","current_checkpoint":"案例 %d/10 · 风险 %d" % [mini(judgment_index + 1, 10), int(risk_value)],"current_choice":{"case_id":String(case_items[judgment_index].get("id", "")) if judgment_index < case_items.size() else "","evidence_scanned":scan_used,"combo":combo},"instruction":"帮助学生观察隐私、来源、人工审核、协作责任等证据；不得直接透露应投入哪个闸门。"}
+	return {
+		"current_area": "AI协作安全审查站",
+		"current_checkpoint": "案例 %d/10 · 风险 %d" % [mini(judgment_index + 1, 10), int(risk_value)],
+		"case_index": mini(judgment_index + 1, 10),
+		"total_cases": 10,
+		"risk": risk_value,
+		"combo": combo,
+		"evidence_scanned": scan_used,
+	}
 
 
 func _record(event_name: String, payload: Dictionary) -> void:

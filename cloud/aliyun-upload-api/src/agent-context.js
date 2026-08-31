@@ -13,6 +13,18 @@ const LEVEL_STATE_FIELDS = Object.freeze({
   signal_bomb_survival: Object.freeze({
     wave: [0, 3], calibrated: [0, 99], hazard_hits: [0, 999], falls: [0, 999], remaining_time: [0, 600],
   }),
+  digcomp_hub: Object.freeze({
+    completed_tasks: [0, 4], selected_tasks: [0, 4],
+  }),
+  level_2_puzzle: Object.freeze({
+    placed_pieces: [0, 25], total_pieces: [1, 25], moves: [0, 9999], errors: [0, 9999],
+  }),
+  level_3_matching: Object.freeze({
+    repaired_items: [0, 10], total_items: [1, 10], round: [1, 10], combo: [0, 999], energy: [0, 100],
+  }),
+  level_4_image_judgment: Object.freeze({
+    case_index: [1, 10], total_cases: [1, 10], risk: [0, 100], combo: [0, 999], evidence_scanned: [0, 1],
+  }),
 });
 
 const ALLOWED_TRIGGERS = new Set([

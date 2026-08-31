@@ -23,7 +23,7 @@ const {
 const LIMITS = {
   events: { max: 10 * 1024 * 1024, types: ["application/x-ndjson", "application/jsonl", "application/octet-stream"] },
   summary: { max: 1024 * 1024, types: ["application/json", "application/octet-stream"] },
-  recording: { max: 512 * 1024 * 1024, types: ["video/mp4", "video/webm", "application/json", "application/octet-stream"] },
+  recording: { max: 1024 * 1024 * 1024, types: ["video/mp4", "video/webm", "application/json", "application/octet-stream"] },
 };
 
 function errorResponse(response, status, code, message = code) {
@@ -140,7 +140,7 @@ function createApp(options = {}) {
   });
 
   if (cloud.mode === "mock") {
-    app.put("/api/mock-upload/:uploadId/:fileName", express.raw({ type: "*/*", limit: "512mb" }), async (request, response) => {
+    app.put("/api/mock-upload/:uploadId/:fileName", express.raw({ type: "*/*", limit: "1gb" }), async (request, response) => {
       try {
         const claims = verifyTicket(bearerTicket(request), config.linkSecret);
         if (claims.upload_id !== request.params.uploadId) throw new Error("upload_id_mismatch");

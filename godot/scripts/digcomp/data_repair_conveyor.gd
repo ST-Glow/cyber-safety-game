@@ -1066,8 +1066,11 @@ func _ai_state() -> Dictionary:
 	return {
 		"current_area": "数据修复传送带",
 		"current_checkpoint": "%d/10 已修复 · 第%d轮" % [completed_ids.size(), _current_round()],
-		"current_choice": {"active_problem_ids": _active_problem_ids(), "combo": combo, "energy": energy},
-		"instruction": "只帮助学生明确目标、检查依据、比较策略并反思；不得泄露正确匹配答案。",
+		"repaired_items": completed_ids.size(),
+		"total_items": 10,
+		"round": _current_round(),
+		"combo": combo,
+		"energy": energy,
 	}
 
 

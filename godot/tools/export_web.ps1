@@ -4,8 +4,10 @@ param(
     [string]$ApiBaseUrl = "",
     [string]$PrimaryApiBaseUrl = "",
     [string]$FallbackApiBaseUrl = "",
-    [string]$StudyVersion = "godot-v1",
+    [string]$StudyVersion = "",
     [string]$BuildVersion = "",
+    [string]$ResearchContact = "",
+    [switch]$PreviewMode,
     [switch]$ProductionMode
 )
 
@@ -31,6 +33,19 @@ if ([string]::IsNullOrWhiteSpace($FallbackApiBaseUrl)) { $FallbackApiBaseUrl = $
 if ([string]::IsNullOrWhiteSpace($FallbackApiBaseUrl)) { $FallbackApiBaseUrl = $PrimaryApiBaseUrl }
 if ([string]::IsNullOrWhiteSpace($BuildVersion)) { $BuildVersion = $env:GITHUB_SHA }
 if ([string]::IsNullOrWhiteSpace($BuildVersion)) { $BuildVersion = "local" }
+if ($PreviewMode -and $ProductionMode) { throw "PreviewMode and ProductionMode are mutually exclusive." }
+if ([string]::IsNullOrWhiteSpace($StudyVersion)) {
+    $StudyVersion = if ($ProductionMode) { "digcomp-v1" } elseif ($PreviewMode) { "digcomp-v1-preview" } else { "digcomp-local" }
+}
+if ([string]::IsNullOrWhiteSpace($ResearchContact)) { $ResearchContact = $env:RESEARCH_CONTACT }
+if ($ProductionMode -and [string]::IsNullOrWhiteSpace($ResearchContact)) {
+    throw "Production export requires ResearchContact or RESEARCH_CONTACT."
+}
+if ($PreviewMode -and [string]::IsNullOrWhiteSpace($ResearchContact)) {
+    $ResearchContact = "技术预览环境，不向真实参与者发放"
+}
+$dataCollectionMode = $PreviewMode -or $ProductionMode
+$deploymentStage = if ($ProductionMode) { "production" } elseif ($PreviewMode) { "preview" } else { "development" }
 
 function Assert-ApiUrl([string]$Value, [string]$Label) {
     $isLocal = $Value -match '^http://(127\.0\.0\.1|localhost):\d+$'
@@ -43,8 +58,8 @@ $PrimaryApiBaseUrl = $PrimaryApiBaseUrl.Trim().TrimEnd("/")
 $FallbackApiBaseUrl = $FallbackApiBaseUrl.Trim().TrimEnd("/")
 Assert-ApiUrl $PrimaryApiBaseUrl "Primary API URL"
 Assert-ApiUrl $FallbackApiBaseUrl "Fallback API URL"
-if ($ProductionMode -and $PrimaryApiBaseUrl -eq $FallbackApiBaseUrl) {
-    throw "Production export requires distinct primary and fallback API URLs."
+if ($dataCollectionMode -and $PrimaryApiBaseUrl -eq $FallbackApiBaseUrl) {
+    throw "Preview and production exports require distinct primary and fallback API URLs."
 }
 
 $projectPath = Split-Path -Parent $PSScriptRoot
@@ -54,7 +69,8 @@ $outputPath = Join-Path $outputFolder "index.html"
 if (-not (Test-Path -LiteralPath $outputFolder -PathType Container)) {
     New-Item -ItemType Directory -Path $outputFolder -Force | Out-Null
 }
-& $GodotExe --headless --path $projectPath --export-debug Web $outputPath
+$exportFlag = if ($dataCollectionMode) { "--export-release" } else { "--export-debug" }
+& $GodotExe --headless --path $projectPath $exportFlag Web $outputPath
 if ($LASTEXITCODE -ne 0) {
     throw "Godot Web export failed with exit code $LASTEXITCODE"
 }
@@ -76,12 +92,19 @@ $aiConfig = [ordered]@{
     fallbackApiBaseUrl = $FallbackApiBaseUrl
 } | ConvertTo-Json -Compress
 $experimentConfig = [ordered]@{
-    productionMode = [bool]$ProductionMode
+    productionMode = [bool]$dataCollectionMode
+    deploymentStage = $deploymentStage
     primaryApiBaseUrl = $PrimaryApiBaseUrl
     fallbackApiBaseUrl = $FallbackApiBaseUrl
     studyVersion = $StudyVersion
     buildVersion = $BuildVersion
     retentionMonths = 12
+    expectedSessionMinutes = 45
+    recordingFps = 30
+    recordingBitsPerSecond = 1500000
+    recordingChunkBatchSize = 15
+    maxRecordingBytes = 1073741824
+    researchContact = $ResearchContact
 } | ConvertTo-Json -Compress
 $configuration = @"
 <script>window.GODOT_AI_CONFIG=Object.freeze($aiConfig);window.GODOT_EXPERIMENT_CONFIG=Object.freeze($experimentConfig);</script>
@@ -94,4 +117,4 @@ if (-not $html.Contains("</head>")) {
 }
 $html = $html.Replace("</head>", "$configuration`n</head>")
 [System.IO.File]::WriteAllText($outputPath, $html, [System.Text.UTF8Encoding]::new($false))
-Write-Output "WEB_EXPORT_OK $outputPath PRIMARY=$PrimaryApiBaseUrl FALLBACK=$FallbackApiBaseUrl PRODUCTION=$([bool]$ProductionMode)"
+Write-Output "WEB_EXPORT_OK $outputPath PRIMARY=$PrimaryApiBaseUrl FALLBACK=$FallbackApiBaseUrl STAGE=$deploymentStage STUDY=$StudyVersion"

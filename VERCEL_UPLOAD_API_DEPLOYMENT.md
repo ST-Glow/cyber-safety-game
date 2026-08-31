@@ -1,16 +1,17 @@
 # Vercel 回退 API 部署
 
-Vercel 部署与香港 FC 相同的 Express 后端，仅在主 API 网络失败或返回 5xx
-时由 Godot Web 自动调用。录像和日志仍由浏览器直传私有 OSS。
+Vercel 部署与香港 FC 相同的 Express 后端，仅在主 API 网络失败或返回 5xx 时
+由 Godot Web 自动调用。录像和日志仍由浏览器直传私有 OSS。
 
-## 项目设置
+## 项目与环境
 
-从 GitHub 导入仓库，Root Directory 设为 `cloud/aliyun-upload-api`，Node.js
-设为 20。Production 环境必须配置：
+现有后端项目 Root Directory 为 `cloud/aliyun-upload-api`，Node.js 使用 20 或
+更高版本。先创建 Preview 部署；Preview 与 Production 各自配置变量，且使用
+不同的 `UPLOAD_LINK_SECRET`：
 
 ```text
-UPLOAD_LINK_SECRET=<与香港FC相同的新密钥>
-ALLOWED_ORIGINS=https://<你的-pages-origin>
+UPLOAD_LINK_SECRET=<与同环境香港FC一致；预览和正式不同>
+ALLOWED_ORIGINS=https://<该环境唯一前端Origin>
 
 OSS_REGION=oss-cn-hangzhou
 OSS_BUCKET=cyber-game
@@ -20,36 +21,44 @@ STS_ENDPOINT=https://sts.cn-hangzhou.aliyuncs.com
 ALIBABA_CLOUD_ACCESS_KEY_ID=<最小权限RAM用户>
 ALIBABA_CLOUD_ACCESS_KEY_SECRET=<最小权限RAM用户>
 
-COZE_BOT_ID=<新Bot ID>
-COZE_JWT_OAUTH_CLIENT_ID=<新OAuth Client ID>
-COZE_JWT_OAUTH_PUBLIC_KEY_ID=<新Public Key ID>
+COZE_BOT_ID=<已发布到API渠道的Bot ID>
+COZE_JWT_OAUTH_CLIENT_ID=<OAuth Client ID>
+COZE_JWT_OAUTH_PUBLIC_KEY_ID=<Public Key ID>
 COZE_JWT_OAUTH_PRIVATE_KEY=<完整PEM私钥>
-AI_LEVEL_PROMPTS_JSON=<与香港FC完全相同的四关JSON>
+AI_LEVEL_PROMPTS_JSON=<与同环境香港FC相同的8档案JSON>
 ```
 
-敏感变量只填入 Vercel 控制台，不要写入 GitHub Variables。不要配置
-`MOCK_OSS_ROOT`、`PUBLIC_BASE_URL` 或 `PORT`。新 Bot 必须先发布到扣子 API
-渠道。
+敏感变量只填入 Vercel 控制台。不要配置 `MOCK_OSS_ROOT`、`PUBLIC_BASE_URL`
+或 `PORT`。健康接口必须返回 `ok=true`、`mode=real`、
+`coze_configured=true`、`coze_bot_configured=true`、`ai_profile_count=8`。
 
-部署后访问 `https://<项目>.vercel.app/api/health`，确认 `ok=true`、
-`mode=real`、`coze_configured=true`、`coze_bot_configured=true`。健康接口不
-返回 Bot ID。
+预览静态前端使用独立项目 `cyber-safety-game-preview`，研究版本固定为
+`digcomp-v1-preview`。Vercel Preview API 与预览 FC 都只允许该前端精确
+Origin；不得把 GitHub Pages 正式 Origin 加入预览白名单。
 
-## 生成 active / passive 链接
+## 生成链接
 
-教师端使用同一份新 `UPLOAD_LINK_SECRET`：
+教师端只在本机临时设置同环境密钥，不写入文件：
 
 ```powershell
-$env:UPLOAD_LINK_SECRET = "与两个后端相同的新密钥"
+$env:UPLOAD_LINK_SECRET = "与两个预览后端相同的预览密钥"
 node tools/generate-student-links.cjs `
-  --base-url https://<你的-pages地址>/ `
-  --class PILOT-A --count 30 --prefix P --hours 24 `
-  --study-version godot-v1 --seed PILOT-A-2026 `
-  --output generated/PILOT-A-links.csv
+  --base-url https://<preview-project>/ `
+  --class PREVIEW-20260831 --count 4 --prefix T --hours 48 `
+  --study-version digcomp-v1-preview --seed PREVIEW-20260831 `
+  --output generated/PREVIEW-20260831-links.csv
 ```
 
-CSV 包含 `condition`，按固定种子近似 1:1 分配。条件在 v2 票据内签名，不能
-由查询参数篡改。只向每位参与者发送其自己的 `game_url`。
+验收 CSV 应包含 `T001`–`T004`，active/passive 各两条。正式切换时使用新的正式
+密钥、正式班级参数和 `digcomp-v1` 重新生成，绝不复用预览链接。
 
-切换正式版本时必须轮换 `UPLOAD_LINK_SECRET`，先同步更新 Vercel 和香港
-FC，再生成新链接；旧链接会立即失效。
+## 切换顺序
+
+1. Preview 部署与预览 FC 配置一致并通过健康检查。
+2. 完成四条端到端和长录像/断点续传验收。
+3. 先部署兼容旧前端的正式 FC 和 Vercel 后端。
+4. 同步轮换两个正式后端的密钥并做健康检查。
+5. 合并 `main`，由 GitHub Actions 发布正式 Pages。
+
+旧正式链接在密钥轮换后立即失效。前后端失败时不要显示保存成功；只有服务端
+`manifest.json` 已完成才允许清理 IndexedDB 并提示关闭页面。

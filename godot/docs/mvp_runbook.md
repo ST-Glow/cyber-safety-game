@@ -1,51 +1,73 @@
-# Godot 四关版运行与验收
+# Godot DigComp 完整版运行与验收
 
 ## 运行模式
 
-- 编辑器/本地非生产构建：主菜单可选四个单关或四关连续流程，F6 可直跑单关。
-- 正式 Web 构建：有效 v2 票据 + 成人同意后自动进入四关连续流程，不显示单关菜单。
+- 编辑器/本地开发构建：主菜单可进入单项、DigComp 大厅或完整流程；使用 debug 导出。
+- 隔离预览：release 导出，有效预览票据与成人同意后进入完整流程，研究版本
+  `digcomp-v1-preview`。
+- 正式 Web：release 导出，有效正式票据与成人同意后自动进入 DigComp 大厅，
+  不显示 `(DEBUG)`，研究版本 `digcomp-v1`。
 - `active`：停滞、无进展、重复失败、答题错误、重复策略均可邀请。
-- `passive`：仅学生主动打开助手时调用同一个 Bot。
+- `passive`：仅参与者主动打开助手时调用同一个 Bot。
+
+四大任务为综合闯关、拼图、数据修复匹配、图像风险判断；综合闯关内部保留原
+四关流程。AI 请求只上传每项的白名单数值进度，不上传正确答案、位置或客户端
+指令文本。
 
 ## 自动回归
 
 ```powershell
 ./godot/tests/run_smoke_tests.ps1
+Set-Location cloud/aliyun-upload-api
+npm test
 ```
 
-测试入口固定兼容 Godot 4.7.1，并覆盖主菜单、四关流程、事件、评分、支架
-条件与 AI 服务。后端测试从 `cloud/aliyun-upload-api` 运行 `npm test`。
+测试覆盖大厅、四大任务、原四关、事件、评分、支架条件、AI 服务、8 档案过滤、
+录屏分块契约和 1 GiB 上限。
 
 ## Web 导出
 
-开发导出：
+开发 debug 导出：
 
 ```powershell
 ./godot/tools/export_web.ps1 -ApiBaseUrl http://127.0.0.1:8787
 ```
 
-生产导出：
+隔离预览 release 导出：
+
+```powershell
+./godot/tools/export_web.ps1 `
+  -PrimaryApiBaseUrl https://PREVIEW.cn-hongkong.fcapp.run `
+  -FallbackApiBaseUrl https://PREVIEW-API.vercel.app `
+  -StudyVersion digcomp-v1-preview -BuildVersion PREVIEW_ID -PreviewMode
+```
+
+生产 release 导出：
 
 ```powershell
 ./godot/tools/export_web.ps1 `
   -PrimaryApiBaseUrl https://PRIMARY.cn-hongkong.fcapp.run `
   -FallbackApiBaseUrl https://PROJECT.vercel.app `
-  -StudyVersion godot-v1 -BuildVersion RELEASE_ID -ProductionMode
+  -StudyVersion digcomp-v1 -BuildVersion RELEASE_ID `
+  -ResearchContact research@example.org -ProductionMode
 ```
 
-脚本会导出 `godot/build/web`，注入主/备 API 与构建版本，并从已锁定的
-`ali-oss` npm 依赖复制浏览器 SDK；产物不依赖外部 CDN。请通过 HTTP 服务
-打开 WebAssembly，不能双击 `index.html`。
+脚本输出到 `godot/build/web`，注入部署阶段、主/备 API、构建版本、研究邮箱、
+12 个月保存期和 45 分钟设计容量，并从锁定的 `ali-oss` 依赖复制浏览器 SDK。
+通过 HTTP 服务打开 WebAssembly，不能双击 `index.html`。
 
 ## 数据与上传验收
 
 1. 同意前确认未开始录制、未写事件；拒绝后不进入游戏。
 2. 同意后浏览器权限列表中没有麦克风、摄像头或屏幕共享。
-3. 刷新页面后确认 IndexedDB 中的待上传包可以续传。
-4. 四关完成后仅在服务端确认 `manifest.json` 后显示保存成功。
+3. 录像约 1.5 Mbps、30 FPS，分块写入 IndexedDB；刷新后可继续上传。
+4. 四大任务完成后仅在服务端确认 `manifest.json` 后显示保存成功并清理本地块。
 5. OSS 路径为
-   `studies/godot-v1/<class>/<condition>/<student>/<upload_id>/`，包含四个对象。
-6. 断开主 FC 或令其返回 5xx，确认 AI 与上传 API 自动切换到 Vercel。
+   `studies/digcomp-v1[-preview]/<class>/<condition>/<student>/<upload_id>/`。
+6. 对象包含 `session.jsonl`、schema v3 `summary.json`、录像或降级说明和
+   `manifest.json`。
+7. 断开主 FC 或令其返回 5xx，确认 AI 与上传 API 自动切换到 Vercel。
+8. 完成接近 40 分钟测试，确认录像低于 1 GiB，刷新后不会提前显示保存成功。
 
-正式验收在最新版桌面 Chrome、Edge 各跑 active/passive 一条。手机和触控
-不在本次范围。
+正式验收在最新版桌面 Chrome、Edge 各跑 active/passive 一条。手机和触控不在
+本次范围。

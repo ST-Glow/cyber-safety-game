@@ -507,8 +507,10 @@ func _ai_state() -> Dictionary:
 	return {
 		"current_area": "数字策略图片拼图",
 		"current_checkpoint": "%d/%d 块已归位" % [placed_count, pieces.size()],
-		"current_choice": {"dragged_piece_id": _dragged_piece.piece_id if _dragged_piece else -1, "moves": moves, "errors": errors},
-		"instruction": "只引导学生观察颜色、边缘、整体结构和尝试策略；不得透露任何拼图块的正确行列或目标位置。",
+		"placed_pieces": placed_count,
+		"total_pieces": pieces.size(),
+		"moves": moves,
+		"errors": errors,
 	}
 
 

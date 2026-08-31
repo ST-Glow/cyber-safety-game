@@ -2,7 +2,9 @@
   "use strict";
 
   const DB_NAME = "ai-training-ground-study-v2";
+  const DB_VERSION = 2;
   const STORE_NAME = "sessions";
+  const CHUNK_STORE_NAME = "recording_chunks";
   const config = window.GODOT_EXPERIMENT_CONFIG || {};
   const conditions = new Set(["active", "passive"]);
   const state = {
@@ -12,7 +14,6 @@
     events: [],
     recorder: null,
     stream: null,
-    chunks: [],
     recordingBlob: null,
     recordingMime: "",
     recordingExtension: "webm",
@@ -20,6 +21,9 @@
     recordingStatus: "not_started",
     stopPromise: null,
     stopResolve: null,
+    pendingRecordingChunks: [],
+    recordingChunkSequence: 0,
+    chunkWriteChain: Promise.resolve(),
     activeRecord: null,
     uploadStarted: false,
   };
@@ -105,10 +109,13 @@
         reject(new Error("indexeddb_unavailable"));
         return;
       }
-      const request = indexedDB.open(DB_NAME, 1);
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
       request.onupgradeneeded = () => {
         if (!request.result.objectStoreNames.contains(STORE_NAME)) {
           request.result.createObjectStore(STORE_NAME, { keyPath: "id" });
+        }
+        if (!request.result.objectStoreNames.contains(CHUNK_STORE_NAME)) {
+          request.result.createObjectStore(CHUNK_STORE_NAME, { keyPath: "id" });
         }
       };
       request.onsuccess = () => resolve(request.result);
@@ -116,14 +123,70 @@
     });
   }
 
-  async function withStore(mode, operation) {
+  async function withNamedStore(storeName, mode, operation) {
     const database = await openDatabase();
     try {
       return await new Promise((resolve, reject) => {
-        const transaction = database.transaction(STORE_NAME, mode);
-        const request = operation(transaction.objectStore(STORE_NAME));
+        const transaction = database.transaction(storeName, mode);
+        const request = operation(transaction.objectStore(storeName));
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error || new Error("indexeddb_request_failed"));
+      });
+    } finally {
+      database.close();
+    }
+  }
+
+  function withStore(mode, operation) {
+    return withNamedStore(STORE_NAME, mode, operation);
+  }
+
+  function recordingChunkRange(id) {
+    const prefix = String(id || "") + ":";
+    return IDBKeyRange.bound(prefix, prefix + "\uffff");
+  }
+
+  async function saveRecordingChunk(uploadId, sequence, blob) {
+    const id = String(uploadId || "");
+    if (!id || !blob || blob.size <= 0) return;
+    await withNamedStore(CHUNK_STORE_NAME, "readwrite", (store) => store.put({
+      id: id + ":" + String(sequence).padStart(6, "0"),
+      uploadId: id,
+      sequence,
+      blob,
+      bytes: blob.size,
+      createdAt: new Date().toISOString(),
+    }));
+  }
+
+  async function loadRecordingChunks(uploadId) {
+    const id = String(uploadId || "");
+    if (!id) return [];
+    try {
+      const rows = await withNamedStore(CHUNK_STORE_NAME, "readonly", (store) => store.getAll(recordingChunkRange(id)));
+      return (rows || []).sort((left, right) => Number(left.sequence || 0) - Number(right.sequence || 0));
+    } catch {
+      return [];
+    }
+  }
+
+  async function deleteRecordingChunks(uploadId) {
+    const id = String(uploadId || "");
+    if (!id) return;
+    const database = await openDatabase();
+    try {
+      await new Promise((resolve, reject) => {
+        const transaction = database.transaction(CHUNK_STORE_NAME, "readwrite");
+        const request = transaction.objectStore(CHUNK_STORE_NAME).openCursor(recordingChunkRange(id));
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (!cursor) return;
+          cursor.delete();
+          cursor.continue();
+        };
+        request.onerror = () => reject(request.error || new Error("recording_chunk_delete_failed"));
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error || new Error("recording_chunk_delete_failed"));
       });
     } finally {
       database.close();
@@ -151,6 +214,7 @@
   async function deleteRecord(id) {
     try {
       await withStore("readwrite", (store) => store.delete(id));
+      await deleteRecordingChunks(id);
     } catch {
       // A completed server manifest is authoritative even if local cleanup fails.
     }
@@ -168,6 +232,7 @@
       createdAt: new Date().toISOString(),
       uploaded: { events: false, summary: false, recording: false },
       checkpoints: {},
+      recordingChunkCount: 0,
     };
   }
 
@@ -178,6 +243,7 @@
     state.events = [];
     state.activeRecord = emptyCollectionRecord(metadata);
     await saveRecord(state.activeRecord);
+    if (state.pendingRecordingChunks.length > 0) queueRecordingChunkPersistence(true);
     return true;
   }
 
@@ -200,6 +266,34 @@
     }
   }
 
+  async function persistPendingRecordingChunks(force = false) {
+    const batchSize = Math.max(1, Number(config.recordingChunkBatchSize || 15));
+    if (!state.activeRecord?.id || state.pendingRecordingChunks.length === 0) return false;
+    if (!force && state.pendingRecordingChunks.length < batchSize) return false;
+    const count = force ? state.pendingRecordingChunks.length : batchSize;
+    const chunks = state.pendingRecordingChunks.splice(0, count);
+    const blob = new Blob(chunks, { type: state.recordingMime || "video/webm" });
+    const sequence = state.recordingChunkSequence;
+    state.recordingChunkSequence += 1;
+    try {
+      await saveRecordingChunk(state.activeRecord.id, sequence, blob);
+      state.activeRecord.recordingChunkCount = sequence + 1;
+      state.activeRecord.recordingChunkBytes = Number(state.activeRecord.recordingChunkBytes || 0) + blob.size;
+      await saveRecord(state.activeRecord);
+      return true;
+    } catch (error) {
+      state.pendingRecordingChunks.unshift(...chunks);
+      state.recordingChunkSequence = sequence;
+      if (state.activeRecord) state.activeRecord.recording_chunk_persistence_error = String(error.message || error);
+      return false;
+    }
+  }
+
+  function queueRecordingChunkPersistence(force = false) {
+    state.chunkWriteChain = state.chunkWriteChain.then(() => persistPendingRecordingChunks(force));
+    return state.chunkWriteChain;
+  }
+
   function chooseRecorder(stream) {
     const profiles = [
       { mime: "video/mp4;codecs=avc1.42E01E", extension: "mp4", name: "mp4_h264_baseline" },
@@ -215,7 +309,7 @@
         return {
           recorder: new MediaRecorder(stream, {
             mimeType: profile.mime,
-            videoBitsPerSecond: Number(config.recordingBitsPerSecond || 2500000),
+            videoBitsPerSecond: Number(config.recordingBitsPerSecond || 1500000),
           }),
           profile,
         };
@@ -245,21 +339,37 @@
       state.recordingExtension = selected.profile.extension;
       state.recordingProfile = selected.profile.name;
       state.recordingStatus = "recording";
-      state.chunks = [];
+      state.pendingRecordingChunks = [];
+      state.recordingChunkSequence = 0;
+      state.chunkWriteChain = Promise.resolve();
       state.stopPromise = new Promise((resolve) => {
         state.stopResolve = resolve;
       });
       state.recorder.ondataavailable = (event) => {
-        if (event.data && event.data.size > 0) state.chunks.push(event.data);
+        if (event.data && event.data.size > 0) {
+          state.pendingRecordingChunks.push(event.data);
+          queueRecordingChunkPersistence(false);
+        }
       };
       state.recorder.onerror = () => {
         state.recordingStatus = "recording_error";
       };
-      state.recorder.onstop = () => {
-        state.recordingBlob = state.chunks.length
-          ? new Blob(state.chunks, { type: state.recordingMime || "video/webm" })
+      state.recorder.onstop = async () => {
+        await queueRecordingChunkPersistence(true);
+        const persistedChunks = await loadRecordingChunks(state.activeRecord?.id);
+        const recordingParts = [
+          ...persistedChunks.map((item) => item.blob).filter(Boolean),
+          ...state.pendingRecordingChunks,
+        ];
+        state.recordingBlob = recordingParts.length
+          ? new Blob(recordingParts, { type: state.recordingMime || "video/webm" })
           : null;
-        state.recordingStatus = state.recordingBlob ? "ready" : "empty";
+        const maximumBytes = Number(config.maxRecordingBytes || 1024 * 1024 * 1024);
+        const sizeExceeded = Boolean(state.recordingBlob && state.recordingBlob.size > maximumBytes);
+        if (sizeExceeded) {
+          state.recordingBlob = null;
+        }
+        state.recordingStatus = sizeExceeded ? "recording_size_exceeded" : (state.recordingBlob ? "ready" : "empty");
         state.stream?.getTracks().forEach((track) => track.stop());
         state.stopResolve?.(state.recordingBlob);
       };
@@ -321,8 +431,11 @@
     await stopRecording();
     const campaignSummary = parseJson(summaryJson);
     const summary = {
-      schema_version: 2,
-      study_version: state.assignment.study_version || String(config.studyVersion || "godot-v1"),
+      schema_version: 3,
+      event_schema_version: 2,
+      campaign_schema_version: Number(campaignSummary.schema_version || 3),
+      study_version: state.assignment.study_version || String(config.studyVersion || "digcomp-v1"),
+      deployment_stage: String(config.deploymentStage || "development"),
       condition: state.assignment.condition,
       session_id: state.sessionId,
       class_id: state.assignment.class_id,
@@ -338,19 +451,22 @@
       recording_extension: state.recordingBlob ? state.recordingExtension : "json",
       recording_profile: state.recordingProfile,
       recording_bytes: state.recordingBlob ? state.recordingBlob.size : 0,
+      recording_bits_per_second: Number(config.recordingBitsPerSecond || 1500000),
+      recording_fps: Number(config.recordingFps || 30),
+      retention_months: Number(config.retentionMonths || 12),
       assistant_interactions: summarizeAssistantEvents(state.events),
       upload_status_at_packaging: "pending_manifest_confirmation",
-	  hub_session: campaignSummary.hub_session || {},
-	  level_1_party_campaign: campaignSummary.level_1_party_campaign || {},
-	  level_2_puzzle: campaignSummary.level_2_puzzle || {},
-	  level_3_matching: campaignSummary.level_3_matching || {},
-	  level_4_image_judgment: campaignSummary.level_4_image_judgment || {},
-	  digcomp_profile: campaignSummary.digcomp_profile || {},
-	  party_gameplay_score: Number(campaignSummary.party_gameplay_score || 0),
+      hub_session: campaignSummary.hub_session || {},
+      level_1_party_campaign: campaignSummary.level_1_party_campaign || {},
+      level_2_puzzle: campaignSummary.level_2_puzzle || {},
+      level_3_matching: campaignSummary.level_3_matching || {},
+      level_4_image_judgment: campaignSummary.level_4_image_judgment || {},
+      digcomp_profile: campaignSummary.digcomp_profile || {},
+      party_gameplay_score: Number(campaignSummary.party_gameplay_score || 0),
       campaign: campaignSummary,
     };
     const recordingStatus = {
-      schema_version: 2,
+      schema_version: 3,
       session_id: state.sessionId,
       status: "recording_unavailable",
       reason: state.recordingStatus,
@@ -601,6 +717,7 @@
       ".study-card h1{margin:0 0 18px;font-size:30px}.study-card p{line-height:1.75;color:#cfe3f4}.study-card ul{padding-left:22px;line-height:1.8;color:#dcebf7}",
       ".study-actions{display:flex;gap:12px;margin-top:24px}.study-actions button{flex:1;padding:13px 18px;border:0;border-radius:12px;background:#45ded1;color:#082034;font-size:16px;font-weight:700;cursor:pointer}",
       ".study-actions button.secondary{background:#314a6c;color:#fff}.study-card.success{border-color:#65e6a3}.study-card.error{border-color:#ff8f8f}",
+      ".study-preview{padding:10px 12px;border-radius:10px;background:#7a4b16;color:#fff3cf!important;font-weight:700}",
       ".study-status{position:fixed;left:18px;bottom:18px;z-index:9000;padding:10px 14px;border-radius:10px;background:#183453;color:#fff;font:14px 'Microsoft YaHei',sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.3)}",
       ".study-status.success{background:#176b4c}.study-status.error{background:#8d3333}",
     ].join("");
@@ -626,7 +743,11 @@
       document.body.appendChild(overlay);
       return;
     }
-    overlay.innerHTML = '<section class="study-card"><h1>参与说明与知情同意</h1><p>本活动研究 AI 学习提示对游戏闯关的帮助。若同意参与，系统会记录匿名游戏操作、答题与提示交互，并只录制本游戏画布。</p><ul><li>不录制麦克风、摄像头、桌面或其他标签页</li><li>不采集真实姓名、手机号或账号信息</li><li>数据仅用于研究与教学改进，默认保存 12 个月</li><li>可通过匿名编号向研究者申请删除</li></ul><div class="study-actions"><button data-action="accept">我已阅读并同意参与</button><button class="secondary" data-action="decline">不同意并退出</button></div></section>';
+    const previewNotice = String(config.deploymentStage || "") === "preview"
+      ? '<p class="study-preview">技术预览环境，仅限内部测试，不得向正式参与者发放。</p>'
+      : "";
+    overlay.innerHTML = '<section class="study-card"><h1>参与说明与知情同意</h1>' + previewNotice + '<p>本活动面向年满 18 岁的参与者，研究 AI 学习提示对数字能力任务的帮助。完整流程约 20–40 分钟，包含 AI 派对闯关、策略拼图、数据与内容匹配、安全协作判断四类任务。</p><p>若同意参与，系统会记录匿名游戏操作、答题、任务结果与提示交互，并只录制本游戏画布。</p><ul><li>不录制麦克风、摄像头、桌面或其他标签页</li><li>不采集真实姓名、手机号或账号信息</li><li>数据仅用于研究与教学改进，保存在私有 OSS 12 个月</li><li>可凭匿名编号申请提前删除；联系渠道：<span data-field="research-contact"></span></li><li>本项目已确认无需单独伦理审批编号</li></ul><div class="study-actions"><button data-action="accept">我已年满18岁，并同意参与</button><button class="secondary" data-action="decline">不同意并退出</button></div></section>';
+    overlay.querySelector('[data-field="research-contact"]').textContent = String(config.researchContact || "正式发放前补充");
     overlay.querySelector('[data-action="accept"]').addEventListener("click", () => {
       state.consent = "accepted";
       overlay.remove();

@@ -1,49 +1,50 @@
-# Experiment event interface
+# Experiment event and summary interface
 
-The Godot prototype now exposes an in-memory, anonymous event stream through the
-`ExperimentSession` autoload. In a production Web build, the browser bridge
-persists this stream to IndexedDB and uploads it only after adult consent.
+The Godot DigComp build exposes an anonymous event stream through the
+`ExperimentSession` autoload. The browser bridge persists consented events and
+recording chunks to IndexedDB, then uploads them after the full task suite.
 
-## Session metadata
+## Event envelope (schema v2)
 
-- `schema_version`: currently `2`.
-- `session_id`: locally generated anonymous run identifier.
-- `condition`: `unassigned`, `active`, or `passive`.
+The append-only JSONL event envelope remains compatible with the previous study:
 
-`active` can invite on idle, no progress, quiz errors, repeated failures, or a
-repeated ineffective strategy. `passive` uses the same Bot but calls it only
-after the student opens the assistant manually. `unassigned` is development-only.
+- `schema_version`: `2`
+- `session_id`: locally generated anonymous run identifier
+- `condition`: `unassigned`, `active`, or `passive`
+- `event_name`, `level_id`, `elapsed_msec`, `payload`
 
-## Event shape
-
-Every event contains:
-
-- `schema_version`
-- `session_id`
-- `condition`
-- `event_name`
-- `level_id`
-- `elapsed_msec`
-- `payload`
-
-Current core events include `session_started`, `condition_assigned`,
-`level_prepared`, `run_started`, `jump_used`, `dash_used`, `obstacle_hit`,
-`player_fell`, `player_respawned`, `quiz_opened`, `quiz_answered`,
-`checkpoint_completed`, `run_completed`, and `level_result_recorded`.
-
+Core events include the original level/run/quiz events plus DigComp hub and task
+events for selection, progress, result recording and four-task completion.
 Scaffolding events include `scaffold_eligible`, `scaffold_triggered`,
 `scaffold_invitation_shown`, `scaffold_accepted`, `scaffold_rejected`,
 `scaffold_dismissed`, `choice_before_scaffold`, `choice_after_scaffold`,
-`support_started`, `support_ended`, and `level_time_summary`. Their payloads use
-an anonymous `scaffold_id` and include `scaffold_level`, `trigger_reason`,
-`scaffold_version`, checkpoint/area, and intervention index. Trigger reasons are
-`idle`, `no_progress`, `repeated_failure`, `quiz_error`, `repeated_strategy`, or
-`manual`.
+`support_started`, `support_ended`, and `level_time_summary`.
 
-`level_time_summary` records mutually exclusive `gameplay_time`, `quiz_time`,
-and `scaffold_time` values in seconds. A visible invitation remains gameplay
-time; scaffold time starts only after acceptance or manual opening.
+`active` can invite on idle, no progress, quiz error, repeated failure, or repeated
+ineffective strategy. `passive` calls the same server profile only after the
+participant opens the assistant manually. AI state is a per-level numeric
+allowlist; client `instruction`, correct answers, puzzle coordinates, matching
+solutions and raw current choices are discarded by the server.
 
-The Web bridge writes each emitted event to IndexedDB, creates the JSONL and
-summary at four-level completion, records only the Godot Canvas, retries uploads,
-and waits for the server-authored manifest before showing final success.
+## DigComp summary (schema v3)
+
+`summary.json` uses schema v3 and includes:
+
+- deployment/study/build metadata and anonymous signed-ticket fields
+- results for all four top-level DigComp tasks
+- the five-domain DigComp profile
+- AI invitation, acceptance and interaction counts
+- recording codec, size, duration/status and degradation reason
+- event count and timing summaries
+
+The JSONL event schema remains v2 so existing analysis can continue reading the
+stream while v3-aware analysis consumes the richer DigComp summary.
+
+## Persistence and completion
+
+The bridge records only the Godot Canvas at about 1.5 Mbps and 30 FPS. Recording
+chunks are periodically stored in IndexedDB alongside events and the pending
+session. Refresh/retry may resume the pending upload. The bridge creates JSONL,
+summary and recording/status objects, retries through the fallback API, and waits
+for the server-authored `manifest.json`. It deletes local events and recording
+chunks and shows final success only after that manifest is confirmed.

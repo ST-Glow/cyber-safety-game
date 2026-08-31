@@ -18,7 +18,7 @@ test("batch link generator creates one isolated ticket per participant", (contex
     script,
     "--base-url", "https://example.test/game/",
     "--class", "PILOT_A",
-    "--count", "3",
+    "--count", "4",
     "--prefix", "USER",
     "--hours", "24",
     "--seed", "fixed-study-seed",
@@ -30,18 +30,20 @@ test("batch link generator creates one isolated ticket per participant", (contex
 
   assert.equal(result.status, 0, result.stderr);
   const lines = fs.readFileSync(output, "utf8").trim().split("\n");
-  assert.equal(lines.length, 4);
+  assert.equal(lines.length, 5);
   assert.match(lines[1], /^"USER001","(active|passive)",/);
   assert.match(lines[2], /^"USER002","(active|passive)",/);
   assert.match(lines[3], /^"USER003","(active|passive)",/);
+  assert.match(lines[4], /^"USER004","(active|passive)",/);
 
   const fields = lines.slice(1).map((line) => line.slice(1, -1).split('","'));
   const uploadIds = fields.map((row) => row[3]);
-  assert.equal(new Set(uploadIds).size, 3);
+  assert.equal(new Set(uploadIds).size, 4);
   const activeCount = fields.filter((row) => row[1] === "active").length;
   const passiveCount = fields.filter((row) => row[1] === "passive").length;
-  assert.equal(Math.abs(activeCount - passiveCount), 1);
-  assert.ok(fields.every((row) => row[5] === "godot-v1"));
+  assert.equal(activeCount, 2);
+  assert.equal(passiveCount, 2);
+  assert.ok(fields.every((row) => row[5] === "digcomp-v1"));
   for (const row of fields) {
     const generatedUrl = new URL(row[2]);
     assert.equal(generatedUrl.searchParams.has("student"), false);
