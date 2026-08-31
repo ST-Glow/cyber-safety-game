@@ -47,11 +47,13 @@ test("web bridge uses the DigComp v1 long-session recording budget", () => {
   assert.match(bridge, /level_4_image_judgment/);
 });
 
-test("adult consent describes the four DigComp tasks and a real contact field", () => {
+test("production adult consent remains while internal preview bypass is explicit", () => {
   assert.match(bridge, /年满 18 岁/);
   assert.match(bridge, /20–40 分钟/);
   assert.match(bridge, /data-field="research-contact"/);
   assert.match(bridge, /config\.researchContact/);
+  assert.match(bridge, /internalPreview/);
+  assert.match(exportScript, /consentMode = if \(\$ProductionMode\) \{ "adult" \} elseif \(\$PreviewMode\) \{ "internal_preview" \}/);
 });
 
 test("web bridge tries primary then fallback only for network or server failures", () => {

@@ -46,6 +46,7 @@ if ($PreviewMode -and [string]::IsNullOrWhiteSpace($ResearchContact)) {
 }
 $dataCollectionMode = $PreviewMode -or $ProductionMode
 $deploymentStage = if ($ProductionMode) { "production" } elseif ($PreviewMode) { "preview" } else { "development" }
+$consentMode = if ($ProductionMode) { "adult" } elseif ($PreviewMode) { "internal_preview" } else { "none" }
 
 function Assert-ApiUrl([string]$Value, [string]$Label) {
     $isLocal = $Value -match '^http://(127\.0\.0\.1|localhost):\d+$'
@@ -94,6 +95,7 @@ $aiConfig = [ordered]@{
 $experimentConfig = [ordered]@{
     productionMode = [bool]$dataCollectionMode
     deploymentStage = $deploymentStage
+    consentMode = $consentMode
     primaryApiBaseUrl = $PrimaryApiBaseUrl
     fallbackApiBaseUrl = $FallbackApiBaseUrl
     studyVersion = $StudyVersion

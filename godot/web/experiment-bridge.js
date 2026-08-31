@@ -6,9 +6,11 @@
   const STORE_NAME = "sessions";
   const CHUNK_STORE_NAME = "recording_chunks";
   const config = window.GODOT_EXPERIMENT_CONFIG || {};
+  const internalPreview = String(config.deploymentStage || "") === "preview"
+    && String(config.consentMode || "") === "internal_preview";
   const conditions = new Set(["active", "passive"]);
   const state = {
-    consent: config.productionMode ? "pending" : "accepted",
+    consent: config.productionMode && !internalPreview ? "pending" : "accepted",
     assignment: parseAssignment(),
     sessionId: "",
     events: [],
@@ -741,6 +743,11 @@
       state.consent = "invalid";
       overlay.innerHTML = '<section class="study-card error"><h1>实验链接无效</h1><p>请使用教师发放的完整个人链接进入。当前页面不会录屏或采集数据。</p></section>';
       document.body.appendChild(overlay);
+      return;
+    }
+    if (internalPreview) {
+      state.consent = "accepted";
+      startRecording();
       return;
     }
     const previewNotice = String(config.deploymentStage || "") === "preview"
