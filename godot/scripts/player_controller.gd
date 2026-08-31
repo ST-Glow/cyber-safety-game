@@ -163,12 +163,19 @@ func burst_impact_particles() -> void:
 
 
 func _process_controlled_movement(delta: float) -> void:
-	var input_vector := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	var horizontal_input := Input.get_axis("move_left", "move_right")
+	var backward_input := maxf(Input.get_action_strength("move_back"), Input.get_action_strength("move_backward"))
+	var forward_input := Input.get_action_strength("move_forward")
+	var input_vector := Vector2(horizontal_input, backward_input - forward_input).limit_length()
 	var movement_direction := _camera_relative_direction(input_vector)
 	var control_factor := 1.0 if is_on_floor() else air_control
 	var target_speed := move_speed * (dash_multiplier if dash_time_left > 0.0 else 1.0)
 
-	if Input.is_action_just_pressed("dash") and dash_cooldown_left <= 0.0:
+	var sprint_requested := Input.is_action_just_pressed("dash") or Input.is_action_just_pressed("sprint")
+	# Web browsers can deliver Shift as an already-held physical key when the
+	# canvas regains focus. Accept that first held frame as a sprint request too.
+	sprint_requested = sprint_requested or (Input.is_action_pressed("sprint") and dash_time_left <= 0.0)
+	if sprint_requested and dash_cooldown_left <= 0.0:
 		dash_time_left = dash_duration
 		dash_cooldown_left = dash_cooldown
 		if movement_direction.length_squared() < 0.01:

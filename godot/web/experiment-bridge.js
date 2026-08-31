@@ -340,6 +340,13 @@
       recording_bytes: state.recordingBlob ? state.recordingBlob.size : 0,
       assistant_interactions: summarizeAssistantEvents(state.events),
       upload_status_at_packaging: "pending_manifest_confirmation",
+	  hub_session: campaignSummary.hub_session || {},
+	  level_1_party_campaign: campaignSummary.level_1_party_campaign || {},
+	  level_2_puzzle: campaignSummary.level_2_puzzle || {},
+	  level_3_matching: campaignSummary.level_3_matching || {},
+	  level_4_image_judgment: campaignSummary.level_4_image_judgment || {},
+	  digcomp_profile: campaignSummary.digcomp_profile || {},
+	  party_gameplay_score: Number(campaignSummary.party_gameplay_score || 0),
       campaign: campaignSummary,
     };
     const recordingStatus = {

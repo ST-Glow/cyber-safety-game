@@ -110,6 +110,12 @@ func configure_result_action(campaign_mode: bool) -> void:
 		restart_campaign_button.text = "重新挑战全部" if campaign_mode else "返回主菜单"
 
 
+func configure_nested_campaign_result() -> void:
+	_campaign_mode = true
+	if restart_campaign_button:
+		restart_campaign_button.text = "完成第一关并返回能力大厅"
+
+
 func configure_assistant(level_id: String, state_provider: Callable) -> void:
 	assistant_widget.configure(level_id, state_provider)
 
@@ -207,7 +213,7 @@ func show_result(result: Dictionary, metrics_text: String, campaign_summary: Dic
 	countdown_panel.visible = false
 	_quiz_accepts_input = false
 	if final_level and success and _campaign_mode:
-		result_title.text = "全部训练完成！"
+		result_title.text = "第一关派对任务完成！" if _is_nested_digcomp_campaign() else "全部训练完成！"
 		result_title.modulate = Color("73f2bd")
 		result_metrics.text = scored_metrics + "\n\n" + _format_campaign_summary(campaign_summary)
 	else:
@@ -218,6 +224,11 @@ func show_result(result: Dictionary, metrics_text: String, campaign_summary: Dic
 	restart_campaign_button.visible = final_level and success
 	result_overlay.visible = true
 	_play_audio(confirm_audio if success else error_audio)
+
+
+func _is_nested_digcomp_campaign() -> bool:
+	var digcomp := get_node_or_null("/root/DigCompSession")
+	return digcomp != null and bool(digcomp.get("session_active")) and String(digcomp.get("active_top_level_id")) == "level_1_party_campaign"
 
 
 func _format_campaign_summary(summary: Dictionary) -> String:

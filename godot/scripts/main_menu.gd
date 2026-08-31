@@ -2,9 +2,11 @@ class_name MainMenu
 extends Control
 
 const UI_FONT: FontFile = preload("res://assets/ui/fonts/noto_sans_sc_ui_600.ttf")
+const BACKDROP_SCRIPT := preload("res://scripts/ui/main_menu_backdrop.gd")
 
 var level_buttons: Dictionary = {}
 var campaign_button: Button
+var hub_button: Button
 var _buttons_locked: bool = false
 
 
@@ -24,7 +26,7 @@ func _process(_delta: float) -> void:
 	var web_bridge := get_node_or_null("/root/ExperimentWebBridge")
 	if web_bridge and String(web_bridge.call("consent_status")) == "accepted":
 		set_process(false)
-		_start_campaign()
+		_start_hub()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -43,6 +45,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			selected_index = 3
 		KEY_5, KEY_KP_5, KEY_C:
 			_start_campaign()
+		KEY_6, KEY_KP_6, KEY_H:
+			_start_hub()
 	if selected_index >= 0 and selected_index < levels.size():
 		_start_single_level(String(levels[selected_index].get("id", "")))
 
@@ -53,53 +57,91 @@ func _build_menu() -> void:
 	theme.default_font_size = 18
 	self.theme = theme
 
-	var background := ColorRect.new()
+	var background: Control = BACKDROP_SCRIPT.new() as Control
 	background.name = "Background"
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	background.color = Color("0b1832")
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(background)
 
-	var glow := ColorRect.new()
-	glow.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	glow.color = Color(0.15, 0.82, 0.82, 0.08)
-	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	background.add_child(glow)
+	var top_bar := HBoxContainer.new()
+	top_bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	top_bar.offset_left = 36
+	top_bar.offset_top = 24
+	top_bar.offset_right = -36
+	top_bar.offset_bottom = 72
+	add_child(top_bar)
+	var brand := _label("DIGCOMP 3.0  //  DIGITAL COMPETENCE MISSION", 15, Color("62e8dc"))
+	brand.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_bar.add_child(brand)
+	var build_label := _label("GODOT WEB  ·  FOUR TASK STUDY", 12, Color("789ab2"))
+	build_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	top_bar.add_child(build_label)
 
-	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(center)
+	var stage := HBoxContainer.new()
+	stage.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	stage.offset_left = 64
+	stage.offset_top = 92
+	stage.offset_right = -64
+	stage.offset_bottom = -54
+	stage.add_theme_constant_override("separation", 28)
+	add_child(stage)
 
-	var panel := PanelContainer.new()
-	panel.name = "MenuCard"
-	panel.custom_minimum_size = Vector2(660.0, 650.0)
-	panel.add_theme_stylebox_override("panel", _stylebox(Color("132747"), 28, Color("50dfd4"), 2))
-	center.add_child(panel)
+	var hero := PanelContainer.new()
+	hero.name = "MenuCard"
+	hero.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hero.add_theme_stylebox_override("panel", _stylebox(Color(0.025, 0.09, 0.16, 0.91), 26, Color("2daea9"), 1))
+	stage.add_child(hero)
+	var hero_margin := MarginContainer.new()
+	hero_margin.add_theme_constant_override("margin_left", 40)
+	hero_margin.add_theme_constant_override("margin_right", 40)
+	hero_margin.add_theme_constant_override("margin_top", 42)
+	hero_margin.add_theme_constant_override("margin_bottom", 38)
+	hero.add_child(hero_margin)
+	var hero_content := VBoxContainer.new()
+	hero_content.add_theme_constant_override("separation", 15)
+	hero_margin.add_child(hero_content)
+	var kicker := _label("能力探索计划  /  正式实验入口", 15, Color("62e8dc"))
+	hero_content.add_child(kicker)
+	var title := _label("进入数字能力\n探索总部", 49, Color("f2fbff"))
+	title.add_theme_constant_override("line_spacing", 2)
+	hero_content.add_child(title)
+	var subtitle := _label("在四个可自由选择的任务中收集证据，\n完成后生成五领域 DigComp 3.0 能力画像。", 18, Color("a9c7d8"))
+	subtitle.add_theme_constant_override("line_spacing", 5)
+	hero_content.add_child(subtitle)
+	var chips := HBoxContainer.new()
+	chips.add_theme_constant_override("separation", 7)
+	hero_content.add_child(chips)
+	for chip_text in ["四类小游戏", "AI全程陪伴", "自动保存记录"]:
+		var chip := _label("  %s  " % chip_text, 13, Color("c9f4ef"))
+		chip.add_theme_stylebox_override("normal", _stylebox(Color(0.06, 0.21, 0.25, 0.86), 10, Color(0.20, 0.72, 0.67, 0.55), 1))
+		chips.add_child(chip)
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	hero_content.add_child(spacer)
+	hub_button = _menu_button("进入正式能力大厅     START", Color("52dbc9"), Color("082126"))
+	hub_button.name = "HubButton"
+	hub_button.custom_minimum_size.y = 74
+	hub_button.add_theme_font_size_override("font_size", 23)
+	hub_button.pressed.connect(_start_hub)
+	hero_content.add_child(hub_button)
+	var formal_hint := _label("正式链接将自动进入此流程；支持电脑 Chrome / Edge。", 13, Color("789ab2"))
+	hero_content.add_child(formal_hint)
 
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 42)
-	margin.add_theme_constant_override("margin_right", 42)
-	margin.add_theme_constant_override("margin_top", 28)
-	margin.add_theme_constant_override("margin_bottom", 28)
-	panel.add_child(margin)
-
+	var dev_panel := PanelContainer.new()
+	dev_panel.custom_minimum_size.x = 440
+	dev_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.025, 0.075, 0.14, 0.94), 24, Color("315878"), 1))
+	stage.add_child(dev_panel)
+	var dev_margin := MarginContainer.new()
+	dev_margin.add_theme_constant_override("margin_left", 26)
+	dev_margin.add_theme_constant_override("margin_right", 26)
+	dev_margin.add_theme_constant_override("margin_top", 27)
+	dev_margin.add_theme_constant_override("margin_bottom", 24)
+	dev_panel.add_child(dev_margin)
 	var content := VBoxContainer.new()
-	content.add_theme_constant_override("separation", 10)
-	margin.add_child(content)
-
-	var kicker := _label("GODOT · AI TRAINING ARENA", 16, Color("69eee2"))
-	kicker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	content.add_child(kicker)
-	var title := _label("AI训练场大挑战", 38, Color("ffffff"))
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	content.add_child(title)
-	var subtitle := _label("选择单关自由练习，或进入四关连续派对流程", 17, Color("c6d9ef"))
-	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	content.add_child(subtitle)
-
-	var separator := HSeparator.new()
-	separator.add_theme_constant_override("separation", 8)
-	content.add_child(separator)
+	content.add_theme_constant_override("separation", 8)
+	dev_margin.add_child(content)
+	content.add_child(_label("开发测试入口", 25, Color("effaff")))
+	content.add_child(_label("用于单关调试，不进入正式四任务测量。", 13, Color("7fa5bc")))
 
 	for level in CampaignSession.get_levels_in_menu_order():
 		var level_id := String(level.get("id", ""))
@@ -109,16 +151,20 @@ func _build_menu() -> void:
 		)
 		button.name = "Level_%s" % level_id
 		button.tooltip_text = String(level.get("detail", ""))
+		button.custom_minimum_size = Vector2(380.0, 47.0)
+		button.add_theme_font_size_override("font_size", 15)
 		button.pressed.connect(_start_single_level.bind(level_id))
 		content.add_child(button)
 		level_buttons[level_id] = button
 
 	campaign_button = _menu_button("5    派对流程 · 连续挑战四关", Color("ecb947"), Color("2e2440"))
 	campaign_button.name = "CampaignButton"
+	campaign_button.custom_minimum_size = Vector2(380.0, 47.0)
+	campaign_button.add_theme_font_size_override("font_size", 15)
 	campaign_button.pressed.connect(_start_campaign)
 	content.add_child(campaign_button)
 
-	var hint := _label("鼠标点击或按 1–5 选择 · F6 仍可在编辑器直接运行单关", 14, Color("91a9c7"))
+	var hint := _label("快捷键 1–5：开发测试   ·   6 / H：正式大厅", 12, Color("789ab2"))
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	content.add_child(hint)
 
@@ -160,12 +206,24 @@ func _start_campaign() -> void:
 		_set_buttons_locked(false)
 
 
+func _start_hub() -> void:
+	if _buttons_locked:
+		return
+	_set_buttons_locked(true)
+	var change_error := DigCompSession.start_hub(true)
+	if change_error != OK:
+		push_error("Unable to start DigComp hub: %s" % error_string(change_error))
+		_set_buttons_locked(false)
+
+
 func _set_buttons_locked(locked: bool) -> void:
 	_buttons_locked = locked
 	for button in level_buttons.values():
 		(button as Button).disabled = locked
 	if campaign_button:
 		campaign_button.disabled = locked
+	if hub_button:
+		hub_button.disabled = locked
 
 
 func _menu_button(text_value: String, color: Color, font_color: Color = Color("ffffff")) -> Button:

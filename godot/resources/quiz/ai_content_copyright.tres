@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="QuizQuestion" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/quiz_question.gd" id="1_quiz"]
+
+[resource]
+script = ExtResource("1_quiz")
+task_id = "party_content_copyright"
+digcomp_area_id = "area_3"
+competence_id = "copyright_and_licenses"
+learning_outcome_id = "label_ai_content_and_respect_licenses"
+title = "终点挑战 2 / 2 · 标记与版权"
+prompt = "把AI辅助制作的海报发布到班级网站前，哪种做法更合适？"
+options = PackedStringArray("按学校要求说明AI参与，并检查图片许可和署名", "删除所有素材来源，让作品看起来完全原创", "只要图片能下载，就一定可以任意使用")
+correct_index = 0
+explanation = "发布数字作品时，应遵守AI使用说明要求，并核对素材许可、版权和署名。"

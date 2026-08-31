@@ -4,8 +4,12 @@
 
 [resource]
 script = ExtResource("1_quiz")
-title = "检查点 4 · 综合应用"
-prompt = "使用AI完成学习任务，哪套做法最合理？"
-options = PackedStringArray("明确任务和要求，理解AI的回答，并用可靠资料核验", "把题目交给AI后直接提交", "只要AI语气肯定，就不需要再次检查")
+task_id = "party_private_data_safety"
+digcomp_area_id = "area_4"
+competence_id = "protecting_personal_data"
+learning_outcome_id = "minimize_personal_data_shared_with_ai"
+title = "检查点 4 · 隐私与安全"
+prompt = "使用AI整理同学调查数据时，哪种做法更安全？"
+options = PackedStringArray("先移除真实姓名等不必要身份信息，并使用学校批准的工具", "把完整姓名、电话和住址一起上传，方便AI理解", "把账号密码写进提示语，避免忘记")
 correct_index = 0
-explanation = "合理使用AI需要明确任务、理解生成内容，并对关键信息进行核验，最终判断仍由学习者完成。"
+explanation = "负责任使用需要数据最小化、保护个人信息，并选择获准的安全工具。"

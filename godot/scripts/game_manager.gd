@@ -30,6 +30,7 @@ var elapsed_seconds: float = 0.0
 var obstacle_hits: int = 0
 var falls: int = 0
 var quiz_attempts: int = 0
+var quiz_attempts_by_question: Array[int] = [0, 0]
 var score: int = 40
 var stars: int = 1
 var assistant_open: bool = false
@@ -59,6 +60,7 @@ func prepare_run() -> void:
 	obstacle_hits = 0
 	falls = 0
 	quiz_attempts = 0
+	quiz_attempts_by_question = [0, 0]
 	score = 40
 	stars = 1
 	knowledge_score = 0
@@ -146,19 +148,22 @@ func open_quiz() -> bool:
 	return true
 
 
-func submit_quiz_answer(selected_index: int, correct_index: int) -> bool:
+func submit_quiz_answer(selected_index: int, correct_index: int, finish_on_correct: bool = true, question_slot: int = 0) -> bool:
 	if state != GameState.QUIZ:
 		return false
 	quiz_attempts += 1
+	var safe_slot := clampi(question_slot, 0, quiz_attempts_by_question.size() - 1)
+	quiz_attempts_by_question[safe_slot] += 1
 	var correct := selected_index == correct_index
-	quiz_answered.emit(selected_index, correct, quiz_attempts)
+	quiz_answered.emit(selected_index, correct, quiz_attempts_by_question[safe_slot])
 	EXPERIMENT_EVENTS.record(self, "quiz_answered", "ai_training_ground", {
 		"quiz_slot": 1,
 		"selected_index": selected_index,
 		"correct": correct,
-		"attempt": quiz_attempts,
+		"attempt": quiz_attempts_by_question[safe_slot],
+		"question_slot": safe_slot + 1,
 	})
-	if correct:
+	if correct and finish_on_correct:
 		_finish_run()
 	return correct
 
@@ -187,6 +192,7 @@ func get_result() -> Dictionary:
 		"obstacle_hits": obstacle_hits,
 		"falls": falls,
 		"quiz_attempts": quiz_attempts,
+		"quiz_attempts_by_question": quiz_attempts_by_question.duplicate(),
 		"score": score,
 		"normalized_score": score,
 		"score_schema_version": SCORE_SCHEMA_VERSION,
@@ -203,7 +209,7 @@ func get_result() -> Dictionary:
 
 func _finish_run() -> void:
 	var score_breakdown := RUN_SCORING.build_score(
-		[quiz_attempts],
+		quiz_attempts_by_question,
 		falls,
 		maxi(0, obstacle_hits - falls),
 		elapsed_seconds,

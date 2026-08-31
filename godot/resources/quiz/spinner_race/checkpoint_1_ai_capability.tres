@@ -4,6 +4,10 @@
 
 [resource]
 script = ExtResource("1_quiz")
+task_id = "party_ai_capability_boundary"
+digcomp_area_id = "area_5"
+competence_id = "problem_solving_and_tool_selection"
+learning_outcome_id = "recognize_ai_capability_boundaries"
 title = "检查点 1 · AI能力边界"
 prompt = "下面哪种说法更准确地描述了人工智能？"
 options = PackedStringArray("它能从数据中发现规律并完成特定任务，但结果仍需要人判断", "它拥有和人完全相同的理解与价值判断", "只要是人工智能给出的结论就一定正确")

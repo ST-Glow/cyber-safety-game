@@ -4,6 +4,10 @@
 
 [resource]
 script = ExtResource("1_quiz")
+task_id = "party_human_ai_responsibility"
+digcomp_area_id = "area_2"
+competence_id = "human_ai_collaboration"
+learning_outcome_id = "allocate_review_and_final_responsibility"
 title = "生存检查点 2 · 人类责任"
 prompt = "当人工智能参与影响同学的重要判断时，哪种做法更合理？"
 options = PackedStringArray("由老师或负责人检查依据，并对最终决定负责", "完全交给人工智能，不需要任何人复核", "只看人工智能回答时的语气是否肯定")

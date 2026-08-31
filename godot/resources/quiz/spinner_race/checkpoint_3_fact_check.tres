@@ -4,6 +4,10 @@
 
 [resource]
 script = ExtResource("1_quiz")
+task_id = "party_fact_check"
+digcomp_area_id = "area_1"
+competence_id = "evaluating_information"
+learning_outcome_id = "cross_check_ai_claims_with_reliable_sources"
 title = "检查点 3 · 事实核验"
 prompt = "AI给出的历史日期与你的教材不一致，首先应该怎么做？"
 options = PackedStringArray("直接相信内容更长的一方", "查看教材和可靠资料，核对来源后再判断", "让AI反复回答，直到出现想要的答案")

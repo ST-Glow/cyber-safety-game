@@ -138,10 +138,10 @@ func start_single_level(level_id: String) -> Error:
 	return load_level(level_id)
 
 
-func start_campaign() -> Error:
+func start_campaign(reset_experiment: bool = true) -> Error:
 	run_mode = RunMode.CAMPAIGN
 	active_level_id = FIRST_LEVEL_ID
-	reset_campaign()
+	reset_campaign(reset_experiment)
 	return load_level(FIRST_LEVEL_ID)
 
 
@@ -186,9 +186,10 @@ func _change_scene(scene_path: String, title: String) -> Error:
 	return get_tree().change_scene_to_file(scene_path)
 
 
-func reset_campaign() -> void:
+func reset_campaign(reset_experiment: bool = true) -> void:
 	level_results.clear()
-	EXPERIMENT_EVENTS.reset_session(self)
+	if reset_experiment:
+		EXPERIMENT_EVENTS.reset_session(self)
 	campaign_reset.emit()
 
 

@@ -8,6 +8,7 @@ const BRIDGE_SCENE := preload("res://scenes/obstacles/tilt_bridge.tscn")
 const UI_SCRIPT := preload("res://scripts/game_ui.gd")
 const SCAFFOLD_CONTROLLER_SCRIPT := preload("res://scripts/scaffolding/scaffold_controller.gd")
 const QUIZ_RESOURCE := preload("res://resources/quiz/generative_ai.tres")
+const COPYRIGHT_QUIZ_RESOURCE := preload("res://resources/quiz/ai_content_copyright.tres")
 const BLUE_PLATFORM := preload("res://assets/environments/platformer/kaykit_platformer_pack/models/blue/platform_6x6x1_blue.gltf")
 const RED_PLATFORM := preload("res://assets/environments/platformer/kaykit_platformer_pack/models/red/platform_6x6x1_red.gltf")
 const YELLOW_PLATFORM := preload("res://assets/environments/platformer/kaykit_platformer_pack/models/yellow/platform_6x6x1_yellow.gltf")
@@ -31,6 +32,9 @@ var spawn_transform := Transform3D.IDENTITY
 var obstacles: Array[Node] = []
 var finish_triggered: bool = false
 var scaffold_controller
+var active_questions: Array[QuizQuestion] = []
+var active_question_index: int = 0
+var question_attempts: Dictionary = {}
 
 
 func _ready() -> void:
@@ -339,18 +343,31 @@ func _on_finish_body_entered(body: Node3D) -> void:
 	if game_manager.open_quiz():
 		finish_triggered = true
 		player.set_controls_enabled(false)
-		ui.show_quiz(QUIZ_RESOURCE)
+		active_question_index = 0
+		ui.show_quiz(active_questions[active_question_index])
 		scaffold_controller.notify_quiz_started()
 
 
 func _on_quiz_choice_selected(selected_index: int) -> void:
-	var expected_correct := selected_index == QUIZ_RESOURCE.correct_index
-	scaffold_controller.notify_quiz_result(expected_correct, {"slot": 1, "selected_index": selected_index})
-	if expected_correct:
-		scaffold_controller.notify_quiz_ended()
-	var correct := game_manager.submit_quiz_answer(selected_index, QUIZ_RESOURCE.correct_index)
+	if active_questions.is_empty() or active_question_index >= active_questions.size():
+		return
+	var question := active_questions[active_question_index]
+	var task_id := question.task_id
+	question_attempts[task_id] = int(question_attempts.get(task_id, 0)) + 1
+	var expected_correct := selected_index == question.correct_index
+	var slot := active_question_index + 1
+	scaffold_controller.notify_quiz_result(expected_correct, {"slot": slot, "selected_index": selected_index})
+	DigCompSession.record_quiz_response(question, selected_index, expected_correct, int(question_attempts[task_id]), "ai_training_ground")
+	var final_question := active_question_index == active_questions.size() - 1
+	var correct := game_manager.submit_quiz_answer(selected_index, question.correct_index, final_question, active_question_index)
 	if not correct:
-		ui.show_wrong_answer(selected_index, QUIZ_RESOURCE.explanation)
+		ui.show_wrong_answer(selected_index, question.explanation)
+		return
+	if not final_question:
+		active_question_index += 1
+		ui.show_quiz(active_questions[active_question_index])
+	else:
+		scaffold_controller.notify_quiz_ended()
 
 
 func _on_run_completed(result: Dictionary) -> void:
@@ -362,6 +379,12 @@ func _on_run_completed(result: Dictionary) -> void:
 
 func _reset_level() -> void:
 	finish_triggered = false
+	active_question_index = 0
+	question_attempts.clear()
+	active_questions = [
+		QUIZ_RESOURCE.randomized(ExperimentSession.session_id),
+		COPYRIGHT_QUIZ_RESOURCE.randomized(ExperimentSession.session_id),
+	]
 	if scaffold_controller:
 		scaffold_controller.reset_level()
 	get_node("/root/AiAssistantService").clear_level_session("ai_training_ground")

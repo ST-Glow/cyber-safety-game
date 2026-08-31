@@ -4,6 +4,10 @@
 
 [resource]
 script = ExtResource("1_quiz")
+task_id = "party_effective_prompt"
+digcomp_area_id = "area_2"
+competence_id = "human_ai_communication"
+learning_outcome_id = "communicate_goal_context_and_constraints"
 title = "检查点 2 · 有效指令"
 prompt = "想让AI用初一学生能理解的方式解释光合作用，哪条指令更合适？"
 options = PackedStringArray("讲讲光合作用", "请面向初一学生，用三个步骤和一个生活例子解释光合作用，控制在200字内", "越详细越好")

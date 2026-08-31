@@ -4,6 +4,10 @@
 
 [resource]
 script = ExtResource("1_quiz")
+task_id = "party_training_data_quality"
+digcomp_area_id = "area_1"
+competence_id = "managing_data_and_information"
+learning_outcome_id = "evaluate_relevance_quality_and_labels"
 title = "芯片检查点 1 · 训练数据"
 prompt = "要训练一个区分猫和狗图片的人工智能，哪组数据更合适？"
 options = PackedStringArray("大量清晰且正确标注为猫或狗的图片", "只有几张模糊并且没有标注的图片", "与猫和狗无关的天气数字")

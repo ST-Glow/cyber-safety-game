@@ -4,9 +4,12 @@
 
 [resource]
 script = ExtResource("1_quiz")
-title = "终点挑战 · 生成式AI认知"
-prompt = "关于生成式人工智能，哪种说法更准确？"
-options = PackedStringArray("它根据学习到的数据规律生成内容，答案可能不准确", "它像人一样真正理解所有内容", "它只会复制某一个固定答案")
+task_id = "party_content_revision"
+digcomp_area_id = "area_3"
+competence_id = "digital_content_creation"
+learning_outcome_id = "create_and_revise_ai_assisted_content"
+title = "终点挑战 1 / 2 · 修改AI内容"
+prompt = "准备发布一段AI生成的学习介绍，哪种处理最合适？"
+options = PackedStringArray("核对事实并根据受众重写，再保留必要的来源说明", "保持原文不变，因为AI已经自动检查过", "只改字体颜色，不检查内容")
 correct_index = 0
-explanation = "生成式AI会根据训练中学习到的规律生成内容，但它仍可能出现事实错误或不合适的回答。"
-
+explanation = "数字内容创作不仅是生成内容，还需要核验、编辑、适配受众并保留必要的来源信息。"

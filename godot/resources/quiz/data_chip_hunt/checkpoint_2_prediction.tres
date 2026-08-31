@@ -4,6 +4,10 @@
 
 [resource]
 script = ExtResource("1_quiz")
+task_id = "party_prediction_uncertainty"
+digcomp_area_id = "area_5"
+competence_id = "problem_solving_and_tool_selection"
+learning_outcome_id = "interpret_prediction_uncertainty"
 title = "芯片检查点 2 · AI预测"
 prompt = "人工智能把一张新图片判断为猫，怎样理解更准确？"
 options = PackedStringArray("它根据训练中学到的特征进行预测，仍可能判断错误", "它像人一样真正认识并理解了这只猫", "只要人工智能给出判断，就一定不会出错")

@@ -33,6 +33,7 @@ func _run_test() -> void:
 	await process_frame
 	_expect(menu.level_buttons.size() == 4, "menu exposes four single-level entries")
 	_expect(menu.campaign_button != null, "menu exposes the campaign entry")
+	_expect(menu.hub_button != null, "menu exposes the DigComp formal hub entry")
 
 	var first_button := menu.level_buttons.get("ai_training_ground") as Button
 	_expect(first_button != null, "first-level menu button exists")
@@ -50,6 +51,7 @@ func _run_test() -> void:
 		if manager and player and ui:
 			main_level.call("_on_start_requested")
 			main_level.call("_on_finish_body_entered", player)
+			main_level.call("_on_quiz_choice_selected", 0)
 			main_level.call("_on_quiz_choice_selected", 0)
 			await process_frame
 			ui.next_level_requested.emit()

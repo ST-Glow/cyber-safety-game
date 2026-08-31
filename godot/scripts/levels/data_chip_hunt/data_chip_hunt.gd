@@ -323,10 +323,10 @@ func _open_quiz(slot: int, question: QuizQuestion) -> void:
 	if not mode_manager.open_quiz(slot):
 		return
 	active_quiz_slot = slot
-	active_question = question
+	active_question = question.randomized(ExperimentSession.session_id)
 	player.set_controls_enabled(false)
 	_quiz_pause_token = get_node("/root/PauseCoordinator").acquire(self, &"quiz")
-	mode_ui.show_quiz(question, slot, 2)
+	mode_ui.show_quiz(active_question, slot, 2)
 	scaffold_controller.notify_quiz_started()
 
 
@@ -335,6 +335,8 @@ func _on_quiz_choice_selected(selected_index: int) -> void:
 		return
 	var completed_slot := active_quiz_slot
 	var correct := mode_manager.submit_quiz_answer(selected_index, active_question.correct_index)
+	var attempt := mode_manager.quiz_attempts_by_slot[completed_slot - 1]
+	DigCompSession.record_quiz_response(active_question, selected_index, correct, attempt, "data_chip_hunt")
 	scaffold_controller.notify_quiz_result(correct, {"slot": completed_slot, "selected_index": selected_index})
 	if not correct:
 		mode_ui.show_wrong_answer(selected_index, active_question.explanation)

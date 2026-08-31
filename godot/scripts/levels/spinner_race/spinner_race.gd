@@ -425,13 +425,13 @@ func _on_checkpoint_activated(checkpoint_index: int, spawn_transform: Transform3
 		return
 	pending_checkpoint = checkpoint
 	pending_checkpoint_spawn = spawn_transform
-	pending_checkpoint_question = question
+	pending_checkpoint_question = question.randomized(ExperimentSession.session_id)
 	if not race_manager.open_checkpoint_quiz(checkpoint_index):
 		_clear_pending_checkpoint()
 		return
 	player.set_controls_enabled(false)
 	_quiz_pause_token = get_node("/root/PauseCoordinator").acquire(self, &"quiz")
-	race_ui.show_quiz(question, checkpoint_index)
+	race_ui.show_quiz(pending_checkpoint_question, checkpoint_index)
 	scaffold_controller.notify_quiz_started()
 
 
@@ -442,6 +442,8 @@ func _on_quiz_choice_selected(selected_index: int) -> void:
 		selected_index,
 		pending_checkpoint_question.correct_index
 	)
+	var attempt := race_manager.quiz_attempts_by_checkpoint[pending_checkpoint.checkpoint_index - 1]
+	DigCompSession.record_quiz_response(pending_checkpoint_question, selected_index, correct, attempt, "spinner_race")
 	scaffold_controller.notify_quiz_result(correct, {"checkpoint": pending_checkpoint.checkpoint_index, "selected_index": selected_index})
 	if not correct:
 		race_ui.show_wrong_answer(selected_index, pending_checkpoint_question.explanation)

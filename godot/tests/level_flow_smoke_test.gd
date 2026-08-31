@@ -62,6 +62,7 @@ func _run_test() -> void:
 	first_level.call("_on_start_requested")
 	first_level.call("_on_finish_body_entered", player)
 	first_level.call("_on_quiz_choice_selected", 0)
+	first_level.call("_on_quiz_choice_selected", 0)
 	await process_frame
 	_expect(manager.state == GameManager.GameState.FINISHED, "first level completes before transition")
 

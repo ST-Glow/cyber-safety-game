@@ -4,6 +4,10 @@
 
 [resource]
 script = ExtResource("1_quiz")
+task_id = "party_data_bias"
+digcomp_area_id = "area_4"
+competence_id = "responsible_and_fair_use"
+learning_outcome_id = "recognize_bias_and_possible_harm"
 title = "生存检查点 1 · 数据偏差"
 prompt = "如果训练数据主要来自一种人群，人工智能的结果可能怎样？"
 options = PackedStringArray("对其他人群不够准确，甚至产生不公平结果", "自动对所有人群保持完全相同的准确率", "数据来源越单一，得到的结论一定越全面")

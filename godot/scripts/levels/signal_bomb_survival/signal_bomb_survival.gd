@@ -305,6 +305,8 @@ func _build_ui() -> void:
 	mode_ui.final_level = true
 	add_child(mode_ui)
 	mode_ui.configure_result_action(CampaignSession.is_campaign_run())
+	if DigCompSession.session_active and DigCompSession.active_top_level_id == "level_1_party_campaign":
+		mode_ui.configure_nested_campaign_result()
 	mode_ui.configure_assistant(LEVEL_ID, _get_ai_assistant_state)
 
 
@@ -353,10 +355,10 @@ func _open_wave_quiz(slot: int, question: QuizQuestion) -> void:
 		return
 	quiz_triggered[slot - 1] = true
 	active_quiz_slot = slot
-	active_question = question
+	active_question = question.randomized(ExperimentSession.session_id)
 	player.set_controls_enabled(false)
 	_quiz_pause_token = get_node("/root/PauseCoordinator").acquire(self, &"quiz")
-	mode_ui.show_quiz(question, slot, 2)
+	mode_ui.show_quiz(active_question, slot, 2)
 	scaffold_controller.notify_quiz_started()
 
 
@@ -365,6 +367,8 @@ func _on_quiz_choice_selected(selected_index: int) -> void:
 		return
 	var completed_slot := active_quiz_slot
 	var correct := mode_manager.submit_quiz_answer(selected_index, active_question.correct_index)
+	var attempt := mode_manager.quiz_attempts_by_slot[completed_slot - 1]
+	DigCompSession.record_quiz_response(active_question, selected_index, correct, attempt, LEVEL_ID)
 	scaffold_controller.notify_quiz_result(correct, {"slot": completed_slot, "selected_index": selected_index})
 	if not correct:
 		mode_ui.show_wrong_answer(selected_index, active_question.explanation)
@@ -505,7 +509,8 @@ func _on_run_finished(result: Dictionary) -> void:
 		metrics += "\n失败原因：%s" % failure_reason
 	var campaign_summary := CampaignSession.get_campaign_summary() if CampaignSession.is_campaign_run() else {}
 	mode_ui.show_result(result, metrics, campaign_summary)
-	if CampaignSession.is_campaign_run() and int(campaign_summary.get("completed_levels", 0)) == int(campaign_summary.get("total_levels", -1)):
+	var nested_digcomp := DigCompSession.session_active and DigCompSession.active_top_level_id == "level_1_party_campaign"
+	if not nested_digcomp and CampaignSession.is_campaign_run() and int(campaign_summary.get("completed_levels", 0)) == int(campaign_summary.get("total_levels", -1)):
 		var web_bridge := get_node_or_null("/root/ExperimentWebBridge")
 		if web_bridge:
 			web_bridge.call_deferred("finalize_campaign", campaign_summary)
@@ -516,7 +521,8 @@ func _on_restart_requested() -> void:
 
 
 func _on_restart_campaign_requested() -> void:
-	var change_error := CampaignSession.restart_campaign() if CampaignSession.is_campaign_run() else CampaignSession.return_to_menu()
+	var nested_digcomp := DigCompSession.session_active and DigCompSession.active_top_level_id == "level_1_party_campaign"
+	var change_error := DigCompSession.complete_party_campaign(CampaignSession.get_campaign_summary()) if nested_digcomp else (CampaignSession.restart_campaign() if CampaignSession.is_campaign_run() else CampaignSession.return_to_menu())
 	if change_error != OK:
 		push_error("Unable to leave signal_bomb_survival: %s" % error_string(change_error))
 
