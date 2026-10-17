@@ -1,0 +1,15 @@
+.trial-dialog { inset: 0; max-width: min(620px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 0; border: 2px solid #d9af67; border-radius: 22px; color: #234352; background: #fff8e8; box-shadow: 0 22px 90px #102f4770; font-family: inherit; }
+.trial-dialog::backdrop { background: #061e35cc; }
+.trial-paper { padding: clamp(22px, 4vw, 38px); }
+.trial-eyebrow { color: #9d6a38; font-size: 13px; font-weight: 700; }
+.trial-paper h2 { margin: 14px 0; font-size: 29px; }
+.trial-copy, .trial-detail { line-height: 1.8; font-size: 16px; }
+.trial-detail { padding: 14px; margin-top: 14px; border-radius: 10px; background: #e6eddf; color: #365e56; }
+.trial-message { min-height: 26px; color: #a3543c; font-size: 15px; line-height: 1.7; }
+.trial-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.trial-actions button { padding: 13px 18px; border: 1px solid #46786c; border-radius: 10px; background: #467e70; color: #fffaf0; font: inherit; font-weight: 700; cursor: pointer; }
+.trial-actions button.secondary { color: #425e5a; background: #f6edda; border-color: #c8b999; }
+.trial-actions button:disabled { opacity: .6; cursor: wait; }
+.trial-actions button:focus-visible { outline: 3px solid #c58e36; outline-offset: 3px; }
+.trial-recording-badge { position: fixed; z-index: 30; right: 90px; top: 5px; padding: 5px 10px; color: #fff8e4; background: #426e62; border-radius: 20px; font-size: 11px; pointer-events: none; }
+.trial-recording-badge[data-tone="warning"] { background: #a15c3d; }

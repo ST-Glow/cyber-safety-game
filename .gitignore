@@ -30,3 +30,7 @@ dist/
 
 .vercel
 .env*
+tmp/classroom-local/
+/tmp/classroom-issuance-20260913/
+/tmp/experiment-accounts-20260921/
+/outputs/01a07093-23d8-7af0-a31e-a46c7a6dfa7e/

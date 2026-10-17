@@ -30,8 +30,10 @@ const LEVEL_STATE_FIELDS = Object.freeze({
 const ALLOWED_TRIGGERS = new Set([
   "manual", "idle", "no_progress", "repeated_failure", "quiz_error", "repeated_strategy",
 ]);
-const ALLOWED_CONDITIONS = new Set(["unassigned", "active", "passive"]);
+const ALLOWED_CONDITIONS = new Set(["unassigned", "active", "passive", "proactive", "reactive"]);
+const LESSON1_STATE_FIELDS = Object.freeze({ challenge_index: [0, 2], errors: [0, 999], matched_pairs: [0, 2], elapsed: [0, 3600] });
 const REQUIRED_LEVEL_IDS = Object.freeze(Object.keys(LEVEL_STATE_FIELDS));
+const LESSON1_PROMPT = '这是初一信息科技第1课的网络实验和知识整理。学生比较中央设备故障前后、不同通信规则、备用路径的作用。支持计划、监控、调节：引导明确想验证的现象、比较前后观察、反思并尝试另一种办法。每次只给2到4个短句、最多一个观察问题。不得说出应该使用哪张行动卡、点击哪个正确对象，也不得公布概念与解释的配对对应关系。不代替学生操作；不透露班级组别或研究条件。';
 const GLOBAL_TUTOR_RULES = [
   "你是面向学生的游戏闯关辅导员。只用简体中文回答，控制在2到4个短句。",
   "采用分层提示：先提出一个观察问题，再给一个可立即尝试的小步骤；不要直接替学生完成挑战。",
@@ -63,7 +65,7 @@ function parseLevelPrompts(raw) {
 }
 
 function isKnownLevelId(levelId) {
-  return Object.hasOwn(LEVEL_STATE_FIELDS, String(levelId || ""));
+  return levelId === 'g7_internet_l01' || Object.hasOwn(LEVEL_STATE_FIELDS, String(levelId || ""));
 }
 
 function normalizeTrigger(trigger) {
@@ -88,7 +90,7 @@ function sanitizeAgentState(levelId, state) {
     throw error;
   }
   const output = {};
-  for (const [key, [minimum, maximum]] of Object.entries(LEVEL_STATE_FIELDS[levelId])) {
+  for (const [key, [minimum, maximum]] of Object.entries(levelId === 'g7_internet_l01' ? LESSON1_STATE_FIELDS : LEVEL_STATE_FIELDS[levelId])) {
     if (!Object.hasOwn(state, key)) continue;
     const value = Number(state[key]);
     if (!Number.isFinite(value)) continue;
@@ -101,9 +103,11 @@ function sanitizeAgentState(levelId, state) {
   output.current_objective = safeText(state.current_objective, 300);
   output.current_checkpoint = safeText(state.current_checkpoint, 120);
   output.current_area = safeText(state.current_area, 120);
+  output.scope_id = safeText(state.scope_id, 120);
+  output.scaffold_policy_version = safeText(state.scaffold_policy_version, 48);
   output.elapsed_without_progress = clampNumber(state.elapsed_without_progress, 0, 3600);
   output.allowed_hint_level = Math.round(clampNumber(state.allowed_hint_level, 1, 3));
-  output.recent_failures = sanitizeHistory(state.recent_failures, ["reason", "kind", "area", "current_area", "checkpoint", "current_checkpoint", "elapsed_seconds"]);
+  output.recent_failures = sanitizeHistory(state.recent_failures, ["reason", "kind", "area", "current_area", "checkpoint", "current_checkpoint", "elapsed_seconds", "scope_id", "strategy"]);
   output.recent_quiz_results = sanitizeHistory(state.recent_quiz_results, ["correct", "slot", "checkpoint", "attempt", "selected_index", "elapsed_seconds"]);
   output.previous_hints = Array.isArray(state.previous_hints)
     ? state.previous_hints.slice(-3).map((item) => safeText(item, 500)).filter(Boolean)
@@ -147,7 +151,7 @@ function buildAgentMessage({ levelId, levelPrompt, trigger, state, studentMessag
   ].join("\n");
 }
 
-function filterAgentReply(reply, levelPrompt = "") {
+function filterAgentReply(reply, levelPrompt = "", levelId = '') {
   let text = String(reply || "").trim().slice(0, 500);
   const directAnswer = /(正确答案|答案|正确选项|应该选|选择)\s*[:：为是]?\s*(第?\s*[一二三四1234ABCDabcd]|[ABCDabcd]\s*[项个]?)/u;
   const promptSample = String(levelPrompt || "").replace(/\s+/g, " ").trim().slice(0, 80);
@@ -160,6 +164,10 @@ function filterAgentReply(reply, levelPrompt = "") {
     questionSeen = true;
     return mark;
   });
+  if (levelId === 'g7_internet_l01') {
+    if (/机关|正确答案|应该选|(?:选择|点击|使用|先用|拖动).{0,18}(?:接入设备|建立连接|配置协议|增设备路|运行测试)|(?:单点故障|中央计算机结构|通信协议|协议标准化|备用路径|冗余连接).{0,12}(?:就是|是指|对应|匹配|配对)/u.test(text)) return '先说清楚你想验证什么，再比较操作前后发生的变化。哪一条观察记录能支持你的想法？';
+    return text || '先比较当前现象和你预期的结果，再想一个可以验证的小步骤。';
+  }
   return text || "先停一下观察机关的规律，再选择一个风险更低的小步骤尝试。";
 }
 
@@ -173,4 +181,5 @@ module.exports = {
   buildAgentMessage,
   filterAgentReply,
   ALLOWED_CONDITIONS,
+  LESSON1_PROMPT,
 };

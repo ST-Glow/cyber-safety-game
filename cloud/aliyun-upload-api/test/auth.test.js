@@ -36,7 +36,7 @@ test("rejects expired and unsafe identifiers", () => {
   const ticket = createTicket({ ...claims, exp: 100 }, secret);
   assert.throws(() => verifyTicket(ticket, secret, 101), /ticket_expired/);
   assert.throws(() => createTicket({ ...claims, student_code: "../S001" }, secret), /student_code_invalid/);
-  assert.throws(() => createTicket({ ...claims, condition: "reactive" }, secret), /condition_invalid/);
+  assert.throws(() => createTicket({ ...claims, condition: "unknown" }, secret), /condition_invalid/);
 });
 
 test("binds a Coze conversation session to one upload identity", () => {

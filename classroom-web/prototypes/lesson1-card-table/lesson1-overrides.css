@@ -1,0 +1,475 @@
+/* Lesson 1 additions to the Lesson 4 campus board and card table. */
+.card-hand[data-card-count="5"] {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: clamp(5px, 0.7vw, 11px);
+}
+.card-hand[data-card-count="5"] .action-card {
+  min-height: 104px;
+  padding: 8px 8px;
+  gap: 6px;
+}
+.card-hand[data-card-count="5"] .card-copy strong { font-size: clamp(12px, 1.1vw, 16px); }
+.card-hand[data-card-count="5"] .card-copy small { font-size: 9px; }
+.card-hand[data-card-count="5"] .card-copy em { font-size: 8px; }
+.card-hand[data-card-count="5"] .card-icon { width: 38px; height: 38px; flex-basis: 38px; }
+.card-hand[data-card-count="5"] .sprite-icon {
+  background: url("assets/action-icons-v1.png") 0 50% / 500% 100% no-repeat;
+}
+.card-hand[data-card-count="5"] .sprite-icon[data-icon-index="0"] { background-position-x: 0%; }
+.card-hand[data-card-count="5"] .sprite-icon[data-icon-index="1"] { background-position-x: 25%; }
+.card-hand[data-card-count="5"] .sprite-icon[data-icon-index="2"] { background-position-x: 50%; }
+.card-hand[data-card-count="5"] .sprite-icon[data-icon-index="3"] { background-position-x: 75%; }
+.card-hand[data-card-count="5"] .sprite-icon[data-icon-index="4"] { background-position-x: 100%; }
+.card-hand[data-card-count="5"] .action-card:nth-child(4) .card-icon { background-color: #d9a45e; }
+.card-hand[data-card-count="5"] .action-card:nth-child(5) .card-icon { background-color: #4d91b4; }
+.card-hand[data-card-count="5"] .card-copy { min-width: 0; overflow: hidden; }
+.card-hand[data-card-count="5"] .card-copy strong,
+.card-hand[data-card-count="5"] .card-copy small,
+.card-hand[data-card-count="5"] .card-copy em { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+.lesson1-scene-title {
+  position: absolute;
+  z-index: var(--z-feedback);
+  top: 14px;
+  left: 50%;
+  display: grid;
+  gap: 2px;
+  width: min(530px, 58vw);
+  padding: 8px 15px;
+  text-align: center;
+  background: rgba(255, 249, 228, .88);
+  border: 1px solid rgba(166, 120, 70, .32);
+  border-radius: 12px;
+  box-shadow: 0 5px 14px rgba(79, 49, 22, .12);
+  transform: translateX(-50%);
+}
+.lesson1-scene-title span { color: #a46641; font-size: 10px; font-weight: 900; letter-spacing: .12em; }
+.lesson1-scene-title strong { color: var(--ink); font-size: clamp(16px, 1.65vw, 24px); line-height: 1.1; }
+.lesson1-scene-title small { color: #65768b; font-size: 11px; line-height: 1.2; }
+.lesson1-scene .map-stage { inset: 0; }
+.network-layout { position: absolute; inset: 0; }
+.network-target, .network-route {
+  position: absolute;
+  z-index: var(--z-object);
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+.network-target {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 134px;
+  padding: 5px 8px 7px;
+  color: #334862;
+  background: rgba(255, 248, 226, .84);
+  border: 2px solid rgba(120, 102, 71, .34);
+  border-radius: 15px;
+  box-shadow: 0 7px 0 rgba(100, 69, 37, .12), 0 12px 20px rgba(77, 49, 24, .14);
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, filter .18s ease;
+}
+.network-target img {
+  width: 82px;
+  height: 62px;
+  max-width: 100%;
+  max-height: 62px;
+  object-fit: contain;
+  filter: drop-shadow(0 3px 0 rgba(60, 42, 24, .15));
+}
+.network-target.network-test-device img,
+.network-target.network-fault-device img { width: 103px; height: 56px; }
+.network-caption { display: grid; gap: 1px; min-width: 0; max-width: 100%; overflow: hidden; }
+.network-caption strong { font-size: 12px; line-height: 1.1; }
+.network-caption small { color: #6c7180; font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.network-target.targetable {
+  /* When the connection card asks for a machine, the machine must win hit testing
+     over the decorative/route button that can run underneath it. */
+  z-index: calc(var(--z-object) + 2);
+  border-color: #e69f4d;
+  outline: 5px solid #ffd35c;
+  outline-offset: 5px;
+  box-shadow: 0 0 0 9px rgba(255, 211, 92, .42), 0 8px 0 rgba(100, 69, 37, .12), 0 0 24px rgba(255, 211, 92, .68);
+  transform: translateY(-3px);
+  animation: lesson1TargetPulse 1.05s ease-in-out infinite;
+}
+.network-route.targetable {
+  z-index: calc(var(--z-object) + 1);
+  opacity: 1 !important;
+  border-top-color: #ffd35c;
+  border-top-width: 7px;
+  box-shadow: 0 0 0 4px rgba(255, 211, 92, .34), 0 0 18px rgba(255, 211, 92, .78);
+  animation: lesson1RoutePulse 1.05s ease-in-out infinite;
+}
+.network-target.target-disabled, .network-route.target-disabled { cursor: not-allowed; opacity: .53; }
+.network-target.failed { border-color: rgba(191, 91, 73, .8); filter: grayscale(.35); }
+.network-target.selected { border-color: #4c9fca; }
+.network-route {
+  z-index: calc(var(--z-object) - 1);
+  height: 26px;
+  padding: 0;
+  color: #506e73;
+  background: transparent;
+  border-top: 6px solid rgba(39, 92, 116, .82);
+  border-radius: 0;
+  transform-origin: left center;
+  box-shadow: 0 2px 0 rgba(255, 248, 221, .84), 0 0 5px rgba(26, 67, 91, .36);
+}
+.network-route span {
+  position: absolute;
+  left: 50%;
+  top: -20px;
+  padding: 3px 7px;
+  color: #fff8dc;
+  background: rgba(32, 69, 91, .92);
+  border: 1px solid rgba(255, 220, 126, .72);
+  border-radius: 999px;
+  font-size: 10px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.network-route.route-idle { opacity: .3; border-top-color: rgba(58, 103, 122, .46); box-shadow: none; }
+.network-route.route-idle span { display: none; }
+.network-route.route-online { border-top-color: #1d7891; border-top-style: solid; box-shadow: 0 2px 0 rgba(255, 248, 221, .92), 0 0 10px rgba(25, 111, 137, .72); }
+.network-route.route-recovering { border-top-color: #3b9c85; border-top-style: solid; animation: lesson1RoutePulse 1.1s ease-in-out infinite; }
+.network-route.route-connected { border-top-color: #2a8096; border-top-style: solid; }
+.network-route.route-failed { border-top-color: var(--red); border-top-style: dashed; opacity: .82; box-shadow: 0 2px 0 rgba(255, 248, 221, .82), 0 0 8px rgba(190, 73, 66, .52); }
+.network-route.route-backup { border-top-color: #8064ad; border-top-style: dashed; opacity: .9; box-shadow: 0 2px 0 rgba(255, 248, 221, .9), 0 0 8px rgba(128, 100, 173, .5); }
+/* State classes are declared after the generic route rule, so repeat the
+   selected treatment here to keep it visible instead of letting route-idle
+   wash the line out. */
+.network-route.targetable,
+.network-route.route-idle.targetable {
+  opacity: 1 !important;
+  border-top: 8px solid #f3a532;
+  box-shadow: 0 2px 0 rgba(255, 248, 221, .98), 0 0 0 2px rgba(31, 77, 102, .9), 0 0 0 6px rgba(255, 211, 92, .42), 0 0 22px rgba(255, 211, 92, .9);
+}
+.network-route.targetable span { display: block; top: -25px; color: #fff9e4; background: rgba(31, 77, 102, .96); border-color: rgba(255, 221, 126, .95); box-shadow: 0 2px 0 rgba(34, 58, 72, .25); }
+.early-layout .terminal-device { left: 11%; top: 35%; }
+.early-layout .central-device { left: 43%; top: 23%; }
+.early-layout .route-early-central-link { left: 17%; top: 40%; width: 29%; transform: rotate(-12deg); }
+.early-layout .network-test-device { right: 9%; top: 36%; }
+.early-layout .lesson1-packet { left: 54%; top: 56%; }
+.protocol-layout .network-a { left: 9%; top: 36%; }
+.protocol-layout .network-b { right: 9%; top: 36%; }
+.protocol-layout .route-protocol-bridge { left: 20%; top: 51%; width: 60%; transform: rotate(0deg); }
+.protocol-layout .protocol-screen { left: 42%; top: 13%; }
+.protocol-layout .lesson1-packet { left: 47%; top: 57%; }
+.mesh-layout .mesh-device { left: 16%; top: 34%; }
+.mesh-layout .network-fault-device { right: 16%; top: 12%; }
+.mesh-layout .route-mesh-main-line { left: 29%; top: 49%; width: 48%; transform: rotate(-2deg); }
+.mesh-layout .route-mesh-backup-line { left: 29%; top: 63%; width: 48%; transform: rotate(3deg); }
+.mesh-layout .mesh-receiver { right: 7%; top: 38%; }
+.mesh-layout .lesson1-packet { left: 48%; top: 53%; }
+.lesson1-packet {
+  position: absolute;
+  z-index: var(--z-object);
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  color: #4f3a22;
+  font-size: 10px;
+  font-weight: 900;
+  pointer-events: none;
+}
+.lesson1-packet img { width: 54px; height: 43px; object-fit: contain; filter: drop-shadow(0 3px 0 rgba(60, 42, 24, .15)); }
+.lesson1-packet.packet-active { color: #3f8b70; animation: packetTravel 1.4s ease-in-out infinite; }
+.lesson1-packet.packet-failed { color: #b4574c; filter: grayscale(.55); }
+.protocol-screen, .mesh-receiver {
+  position: absolute;
+  z-index: var(--z-object);
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  color: #40566e;
+}
+.protocol-screen img, .mesh-receiver img { width: 116px; height: 68px; object-fit: contain; filter: drop-shadow(0 4px 0 rgba(60, 42, 24, .15)); }
+.protocol-screen strong, .mesh-receiver strong { font-size: 11px; }
+.protocol-screen small { color: #6d7180; font-size: 9px; }
+.protocol-screen.standardized { color: #4a8d66; }
+.protocol-screen.standardized img { filter: drop-shadow(0 4px 0 rgba(60, 42, 24, .15)) saturate(1.25); }
+.scene-observation {
+  position: absolute;
+  z-index: var(--z-feedback);
+  left: 50%;
+  bottom: 13px;
+  max-width: min(700px, 68vw);
+  padding: 9px 16px;
+  color: #59452a;
+  background: rgba(255, 248, 221, .9);
+  border: 1px solid rgba(181, 128, 65, .35);
+  border-radius: 14px;
+  box-shadow: 0 4px 10px rgba(71, 49, 25, .16);
+  font-size: clamp(12px, .95vw, 15px);
+  font-weight: 800;
+  text-align: center;
+  transform: translateX(-50%);
+}
+.scene-observation[data-guidance="challenge"] {
+  color: #40566e;
+  background: rgba(255, 249, 228, .78);
+  border-color: rgba(95, 137, 171, .34);
+}
+
+/* The feedback strip is the student's main reading point. Make it readable
+   at projector distance while keeping it inside the scene/hand boundary. */
+.campus-shell[data-guidance="tutorial"] .feedback-slot,
+.campus-shell[data-guidance="challenge"] .feedback-slot {
+  width: min(720px, 72vw);
+  min-height: 62px;
+  padding: 11px 17px;
+  gap: 11px;
+  border-radius: 15px;
+}
+.campus-shell[data-guidance="tutorial"] .feedback-slot strong,
+.campus-shell[data-guidance="challenge"] .feedback-slot strong {
+  font-size: clamp(15px, 1.25vw, 20px);
+  line-height: 1.18;
+}
+.campus-shell[data-guidance="tutorial"] .feedback-slot p,
+.campus-shell[data-guidance="challenge"] .feedback-slot p {
+  margin-top: 4px;
+  font-size: clamp(12px, .92vw, 15px);
+  line-height: 1.35;
+}
+.campus-shell[data-guidance="tutorial"] .feedback-dot,
+.campus-shell[data-guidance="challenge"] .feedback-dot {
+  width: 15px;
+  height: 15px;
+}
+
+/* The first challenge explains the input loop. Later challenges leave the
+   card rules discoverable through play and the optional helper drawer. */
+.campus-shell[data-guidance="challenge"] .card-copy em { display: none; }
+.campus-shell[data-guidance="challenge"] .hand-heading strong { color: #f3d98f; }
+
+/* Lesson 1 uses a warm paper card frame so the hand belongs to the campus
+   map instead of looking like a separate sci-fi interface. */
+.card-hand[data-card-count="5"] .action-card {
+  /* The gradient remains visible if the generated PNG is unavailable. */
+  background-image: url("assets/lesson1-card-frame-warm-v1.png"), linear-gradient(135deg, #fff8e6, #f3e0b7);
+  background-size: 100% 100%, 100% 100%;
+  border-color: #c89554;
+  box-shadow: 0 7px 0 rgba(69, 42, 20, .28), 0 10px 18px rgba(36, 36, 24, .2);
+}
+.card-hand[data-card-count="5"] .action-card:nth-child(2) { border-color: #6f9f8a; }
+.card-hand[data-card-count="5"] .action-card:nth-child(3) { border-color: #9b7a54; }
+.card-hand[data-card-count="5"] .sprite-icon {
+  /* Keep the original sprite as a visual fallback if the generated strip is
+     blocked or fails to load. */
+  background-image: url("assets/lesson1-action-icons-warm-v1.png"), url("assets/action-icons-v1.png");
+  background-size: 500% 100%, 500% 100%;
+}
+.card-hand[data-card-count="5"] .action-card.selected {
+  outline: 4px solid #e5a94d;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 8px rgba(229, 169, 77, .3), 0 10px 0 rgba(69, 42, 20, .28), 0 14px 22px rgba(36, 36, 24, .22);
+}
+
+/* First-load tour: the spotlight keeps the current interface visible while
+   making every unrelated region quiet enough for a classroom explanation. */
+.campus-shell .mission-header {
+  /* Keep the pause/menu controls above scene targets. The shared board gives
+     the header the same stacking level as the map, which lets scene buttons
+     intercept clicks when the menu extends below the header. */
+  z-index: 80;
+}
+.campus-shell .shell-tools,
+.campus-shell .shell-tools button {
+  pointer-events: auto;
+}
+.lesson1-tour {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  color: #263f5a;
+  pointer-events: auto;
+}
+.lesson1-tour[data-mode="welcome"] { background: rgba(7, 22, 42, .78); }
+.tour-spotlight {
+  position: fixed;
+  z-index: 1;
+  border: 3px solid #f5c45d;
+  border-radius: 15px;
+  pointer-events: none;
+  box-shadow: 0 0 0 100vmax rgba(5, 14, 29, .78), 0 0 0 7px rgba(245, 196, 93, .28), 0 0 28px rgba(255, 211, 107, .9);
+  animation: lesson1TourPulse 1.35s ease-in-out infinite;
+}
+.tour-welcome,
+.tour-popover {
+  position: fixed;
+  z-index: 2;
+  display: grid;
+  gap: 9px;
+  width: min(420px, calc(100vw - 32px));
+  padding: 22px 24px 20px;
+  background-color: #fff6dc;
+  background-image: url("assets/lesson1-card-frame-warm-v1.png"), linear-gradient(135deg, #fff8e6, #f3e0b7);
+  background-position: center, center;
+  background-size: 100% 100%, 100% 100%;
+  background-repeat: no-repeat;
+  border: 2px solid #c89554;
+  border-radius: 18px;
+  box-shadow: 0 12px 0 rgba(53, 38, 23, .22), 0 22px 34px rgba(2, 12, 26, .35);
+  pointer-events: auto;
+}
+.tour-welcome { left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; }
+.tour-popover { min-height: 166px; }
+.tour-kicker,
+.tour-popover-head span { color: #b06d45; font-size: 11px; font-weight: 900; letter-spacing: .08em; }
+.tour-welcome h2,
+.tour-popover h2 { margin: 0; color: #203f5d; font-size: clamp(21px, 2.25vw, 30px); line-height: 1.12; }
+.tour-welcome p,
+.tour-popover p { margin: 0; color: #627189; font-size: 13px; line-height: 1.55; }
+.tour-popover-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.tour-popover-head strong { color: #6b8b82; font-size: 11px; }
+.tour-actions,
+.tour-welcome-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 3px; }
+.tour-welcome-actions { justify-content: center; margin-top: 7px; }
+.tour-primary,
+.tour-link { min-height: 31px; padding: 7px 12px; border-radius: 9px; cursor: pointer; font: inherit; font-size: 12px; font-weight: 900; }
+.tour-primary { color: #fff9ec; background: #4f887e; border: 1px solid #356a65; box-shadow: 0 3px 0 #2e5f5b; }
+.tour-link { color: #5e6d7c; background: rgba(255, 250, 232, .76); border: 1px solid rgba(150, 119, 70, .45); }
+.tour-primary:hover,
+.tour-link:hover { transform: translateY(-2px); }
+.tour-primary:disabled,
+.tour-link:disabled { cursor: default; opacity: .45; transform: none; }
+@keyframes lesson1TourPulse {
+  0%, 100% { box-shadow: 0 0 0 100vmax rgba(5, 14, 29, .78), 0 0 0 7px rgba(245, 196, 93, .22), 0 0 22px rgba(255, 211, 107, .65); }
+  50% { box-shadow: 0 0 0 100vmax rgba(5, 14, 29, .78), 0 0 0 9px rgba(245, 196, 93, .42), 0 0 34px rgba(255, 211, 107, .95); }
+}
+@media (max-width: 700px) {
+  .tour-popover { padding: 18px 19px 16px; }
+  .tour-popover p { font-size: 12px; }
+  .tour-actions { flex-wrap: wrap; }
+  .tour-actions .tour-link:first-child { margin-right: auto; }
+}
+.lesson1-showcase {
+  position: absolute;
+  inset: 13% 17% 12%;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 20px;
+  color: #f7f1df;
+  background: rgba(31, 58, 69, .86);
+  border: 2px solid rgba(241, 202, 114, .78);
+  border-radius: 18px;
+  box-shadow: 0 10px 20px rgba(70, 44, 20, .2);
+  text-align: center;
+}
+.lesson1-showcase img { width: min(210px, 30vw); height: 92px; object-fit: contain; }
+.lesson1-showcase strong { color: #ffe39a; font-size: clamp(18px, 2vw, 27px); }
+.lesson1-showcase p { margin: 0; color: #cfe4df; font-size: 13px; letter-spacing: .12em; }
+@keyframes packetTravel { 0%,100% { transform: translateX(-5px); } 50% { transform: translateX(8px) translateY(-4px); } }
+@keyframes lesson1TargetPulse { 0%,100% { outline-color: #ffd35c; box-shadow: 0 0 0 8px rgba(255, 211, 92, .34), 0 8px 0 rgba(100, 69, 37, .12), 0 0 16px rgba(255, 211, 92, .54); } 50% { outline-color: #fff3a7; box-shadow: 0 0 0 13px rgba(255, 211, 92, .58), 0 8px 0 rgba(100, 69, 37, .12), 0 0 28px rgba(255, 211, 92, .84); } }
+@keyframes lesson1RoutePulse { 0%,100% { filter: drop-shadow(0 0 2px rgba(255, 211, 92, .45)); } 50% { filter: drop-shadow(0 0 9px rgba(255, 211, 92, .95)); } }
+@media (max-height: 700px) {
+  .card-hand[data-card-count="5"] .action-card { min-height: 92px; padding: 6px; }
+  .card-hand[data-card-count="5"] .card-icon { width: 34px; height: 34px; flex-basis: 34px; }
+  .card-hand[data-card-count="5"] .card-copy strong { font-size: 12px; }
+  .card-hand[data-card-count="5"] .card-copy small { font-size: 8px; }
+  .card-hand[data-card-count="5"] .card-copy em { display: none; }
+}
+@media (max-width: 1100px) {
+  .card-hand[data-card-count="5"] .action-card { gap: 4px; padding-left: 5px; padding-right: 5px; }
+  .card-hand[data-card-count="5"] .card-icon { width: 33px; height: 33px; flex-basis: 33px; }
+  .card-hand[data-card-count="5"] .card-copy strong { font-size: 11px; }
+  .card-hand[data-card-count="5"] .card-copy small { font-size: 8px; }
+  .card-hand[data-card-count="5"] .card-copy em { display: none; }
+}
+
+/* Knowledge matching checkpoints sit between the three network challenges.
+   They reuse the warm paper language of the hand while keeping the map dimly
+   visible behind the native modal. */
+.knowledge-dialog {
+  width: min(720px, calc(100vw - 28px));
+  max-width: 720px;
+  margin: auto;
+  padding: 22px 24px 20px;
+  color: #263f5a;
+  background-color: #fff6dc;
+  background-image: url("assets/lesson1-card-frame-warm-v1.png"), linear-gradient(135deg, #fff8e6, #f3e0b7);
+  background-position: center, center;
+  background-size: 100% 100%, 100% 100%;
+  background-repeat: no-repeat;
+  border: 3px solid #c89554;
+  border-radius: 18px;
+  box-shadow: 0 12px 0 rgba(53, 38, 23, .22), 0 22px 34px rgba(2, 12, 26, .35);
+}
+.knowledge-dialog::backdrop { background: rgba(7, 22, 42, .68); backdrop-filter: blur(2px); }
+.knowledge-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 4px 8px; background: rgba(255, 248, 226, .78); border-radius: 8px; }
+.knowledge-heading span { color: #a85f3c; font-size: 11px; font-weight: 900; letter-spacing: .08em; }
+.knowledge-heading strong { color: #527c73; font-size: 11px; }
+.knowledge-dialog h2 { margin: 6px 0 6px; padding: 4px 8px; color: #203f5d; background: rgba(255, 248, 226, .78); border-radius: 8px; font-size: clamp(20px, 2.1vw, 29px); line-height: 1.14; }
+.knowledge-dialog #knowledge-instructions { padding: 4px 8px; background: rgba(255, 248, 226, .72); border-radius: 8px; }
+.knowledge-dialog > p { margin: 0; color: #627189; font-size: 13px; line-height: 1.5; }
+.knowledge-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 13px 0 9px; padding: 7px 10px; color: #60766f; background: rgba(255, 250, 232, .7); border: 1px solid rgba(150, 119, 70, .3); border-radius: 9px; font-size: 11px; }
+.knowledge-meta strong { color: #8c6844; }
+.knowledge-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.knowledge-card { min-height: 112px; padding: 12px 13px; display: grid; align-content: center; gap: 6px; color: #2c4561; background-color: rgba(255, 249, 229, .95); background-image: linear-gradient(135deg, rgba(255, 255, 255, .55), rgba(244, 225, 181, .72)); border: 3px solid #d4a24d; border-radius: 13px; box-shadow: 0 4px 0 rgba(73, 48, 25, .2); cursor: pointer; text-align: left; transition: transform .14s ease, box-shadow .14s ease, filter .14s ease, opacity .14s ease; }
+.knowledge-card.knowledge-explanation { border-color: #6f9f8a; background-image: linear-gradient(135deg, rgba(249, 255, 243, .86), rgba(207, 234, 220, .76)); }
+.knowledge-card:hover:not(:disabled), .knowledge-card.selected { transform: translateY(-3px); box-shadow: 0 0 0 3px rgba(229, 169, 77, .34), 0 6px 0 rgba(73, 48, 25, .2); }
+.knowledge-card.selected { outline: 3px solid #e5a94d; outline-offset: 2px; }
+.knowledge-card.matched { color: #315b50; border-color: #4f9b79; background: #e3f2e5; box-shadow: 0 0 0 3px rgba(79, 155, 121, .24), 0 4px 0 rgba(53, 102, 78, .2); cursor: default; }
+.knowledge-card:disabled { cursor: default; opacity: .9; }
+.knowledge-card-kind { color: #a56b43; font-size: 10px; font-weight: 900; letter-spacing: .06em; }
+.knowledge-explanation .knowledge-card-kind { color: #4d8872; }
+.knowledge-card strong { font-size: clamp(13px, 1.15vw, 16px); line-height: 1.3; }
+.knowledge-card-status { color: #7d8990; font-size: 10px; }
+.knowledge-card.matched .knowledge-card-status { color: #3d8a68; font-weight: 900; }
+.knowledge-feedback { min-height: 38px; margin-top: 10px !important; padding: 8px 10px; color: #5b6c75 !important; background: rgba(255, 250, 232, .74); border-radius: 9px; }
+.knowledge-feedback[data-tone="success"] { color: #3c7f61 !important; background: #e8f4e6; }
+.knowledge-feedback[data-tone="error"] { color: #a65349 !important; background: #fae5dd; }
+.knowledge-save-status { min-height: 16px; color: #71828a !important; font-size: 11px !important; }
+.knowledge-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.knowledge-card.mismatch { animation: knowledgeCardMismatch .42s ease-in-out; }
+@keyframes knowledgeCardMismatch { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-7px); } 75% { transform: translateX(7px); } }
+@media (max-width: 560px) {
+  .knowledge-dialog { padding: 18px 16px 16px; }
+  .knowledge-cards { grid-template-columns: 1fr; }
+  .knowledge-card { min-height: 82px; }
+  .knowledge-actions { flex-wrap: wrap; }
+  .knowledge-actions [data-knowledge-skip] { margin-right: auto; }
+}
+
+/* Drag-first matching layout: concepts have a clear starting lane and
+   explanations have a clear receiving lane. Click selection remains available
+   for touch screens and keyboard users. */
+.knowledge-match-board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 52px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 10px;
+  margin: 14px 0 10px;
+}
+.knowledge-column {
+  min-width: 0;
+  padding: 9px;
+  background: rgba(255, 250, 232, .58);
+  border: 1px solid rgba(150, 119, 70, .32);
+  border-radius: 13px;
+}
+.knowledge-explanation-column { background: rgba(239, 250, 238, .62); border-color: rgba(79, 143, 111, .35); }
+.knowledge-column-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; padding: 0 3px 6px; }
+.knowledge-column-heading strong { color: #a66a43; font-size: 12px; }
+.knowledge-explanation-column .knowledge-column-heading strong { color: #4e8b73; }
+.knowledge-column-heading span { color: #7f8990; font-size: 10px; }
+.knowledge-cards { display: grid; grid-template-columns: 1fr; gap: 9px; }
+.knowledge-drag-rail { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: #b6813d; text-align: center; }
+.knowledge-drag-rail span { font-size: 10px; line-height: 1.1; font-weight: 900; }
+.knowledge-drag-rail b { font-size: 26px; line-height: 1; }
+.knowledge-card { position: relative; min-height: 126px; padding: 15px 13px 12px 17px; }
+.knowledge-card-grip { position: absolute; top: 7px; right: 9px; color: #be8c4a; font-size: 15px; letter-spacing: -4px; opacity: .65; }
+.knowledge-explanation .knowledge-card-grip { color: #5e9a7d; }
+.knowledge-card.knowledge-concept { cursor: grab; }
+.knowledge-card.knowledge-concept:active { cursor: grabbing; }
+.knowledge-card.dragging { opacity: .62; transform: rotate(1.5deg) scale(.98); filter: saturate(.85); }
+.knowledge-card.drop-target { outline: 4px solid rgba(79, 155, 121, .42); outline-offset: 2px; transform: translateY(-4px); box-shadow: 0 0 0 5px rgba(79, 155, 121, .16), 0 8px 0 rgba(53, 102, 78, .2); }
+.knowledge-card.matched .knowledge-card-grip { color: #4f9b79; }
+@media (max-width: 650px) {
+  .knowledge-match-board { grid-template-columns: 1fr; }
+  .knowledge-drag-rail { flex-direction: row; }
+  .knowledge-drag-rail b { transform: rotate(90deg); }
+}
+

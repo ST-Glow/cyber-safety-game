@@ -5,7 +5,7 @@ const crypto = require("node:crypto");
 const SAFE_ID = /^[A-Za-z0-9_-]{1,48}$/;
 const SAFE_CONVERSATION_ID = /^[A-Za-z0-9_-]{1,128}$/;
 const TICKET_VERSION = 2;
-const STUDY_CONDITIONS = new Set(["active", "passive"]);
+const STUDY_CONDITIONS = new Set(["active", "passive", "proactive", "reactive"]);
 
 function assertSafeId(value, field) {
   if (!SAFE_ID.test(String(value || ""))) {
@@ -34,8 +34,11 @@ function createTicket(claims, secret) {
     student_code: assertSafeId(claims.student_code, "student_code"),
     upload_id: assertSafeId(claims.upload_id, "upload_id"),
     exp: Number(claims.exp),
+    ...(claims.scaffold_policy_version ? { scaffold_policy_version: assertSafeId(claims.scaffold_policy_version, "scaffold_policy_version") } : {}),
+    ...(claims.data_phase ? { data_phase: String(claims.data_phase) } : {}),
   };
   if (!STUDY_CONDITIONS.has(payload.condition)) throw new Error("condition_invalid");
+  if (payload.data_phase && !["pilot", "formal"].includes(payload.data_phase)) throw new Error("data_phase_invalid");
   if (!Number.isFinite(payload.exp)) throw new Error("expiry_invalid");
   const encoded = encodePayload(payload);
   return `${encoded}.${sign(encoded, secret)}`;
@@ -63,6 +66,8 @@ function verifyTicket(ticket, secret, nowSeconds = Math.floor(Date.now() / 1000)
   payload.class_id = assertSafeId(payload.class_id, "class_id");
   payload.student_code = assertSafeId(payload.student_code, "student_code");
   payload.upload_id = assertSafeId(payload.upload_id, "upload_id");
+  if (payload.scaffold_policy_version) payload.scaffold_policy_version = assertSafeId(payload.scaffold_policy_version, "scaffold_policy_version");
+  if (payload.data_phase && !["pilot", "formal"].includes(payload.data_phase)) throw new Error("data_phase_invalid");
   if (!Number.isFinite(payload.exp) || payload.exp < nowSeconds) throw new Error("ticket_expired");
   return payload;
 }

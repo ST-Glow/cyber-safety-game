@@ -1,0 +1,25 @@
+.device-check-page { color:#253e4a; font-family:"Microsoft YaHei",system-ui,sans-serif; }
+.device-check-page dialog { width:min(620px,calc(100vw - 36px)); max-height:calc(100dvh - 36px); padding:0; border:2px solid #c7a267; border-radius:22px; background:#fff7e5; color:#253e4a; box-shadow:0 20px 60px #193b4866; }
+.device-check-page dialog::backdrop { background:#122b39b5; }
+.check-paper { padding:clamp(22px,4vw,38px); }
+.check-eyebrow { color:#926246; font-size:14px; font-weight:700; letter-spacing:2px; }
+.check-paper h1 { margin:12px 0 16px; font-size:clamp(28px,4vw,40px); line-height:1.2; }
+.check-paper p { font-size:17px; line-height:1.65; }
+.check-paper form { display:grid; gap:15px; }
+.check-paper label { display:grid; gap:7px; font-weight:700; }
+.check-paper input,.check-paper select { min-height:44px; box-sizing:border-box; width:100%; padding:8px 12px; font:inherit; color:inherit; background:#fffdf7; border:1px solid #a5b6a3; border-radius:9px; }
+.check-paper button { background:#426f62; color:white; padding:12px 17px; border:1px solid #426f62; border-radius:10px; font:inherit; font-weight:700; cursor:pointer; }
+.check-paper .check-note { color:#6f776e; font-size:13px; }
+.check-error { color:#a44332; min-height:20px; margin:0; }
+.check-actions { display:flex; flex-wrap:wrap; gap:9px; }
+#check-metrics { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+#check-metrics div { background:#e9eedb; border-radius:10px; padding:10px; }
+#check-metrics dd { margin:5px 0 0; font-size:22px; font-weight:700; }
+#check-metrics dt { color:#617564; font-size:13px; }
+#check-stages { list-style:none; padding:0; display:grid; gap:7px; }
+#check-stages li { background:#fffdf8; padding:8px 10px; border:1px solid #d9cdaf; border-radius:8px; }
+.device-check-page .agent-sidebar-slot,.device-check-page [data-tool],.device-check-page .pause-menu { display:none!important; }
+.device-check-page .lesson1-scene-title small { font-size:15px; }
+.check-packet { position:absolute; z-index:20; width:46px; height:28px; object-fit:contain; pointer-events:none; animation:check-flight 4s linear infinite; }
+@keyframes check-flight { from { left:18%; top:48%; } to { left:78%; top:55%; } }
+.check-live { position:fixed; top:16px; right:22px; z-index:250; background:#fff8e8; border:2px solid #cbab71; border-radius:12px; padding:9px 14px; font-weight:700; }

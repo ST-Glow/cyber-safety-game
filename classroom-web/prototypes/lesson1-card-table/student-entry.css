@@ -1,0 +1,62 @@
+/* Lesson 1 trial entry. Keep these rules separate from the shared lesson shell. */
+.student-entry {
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: clamp(24px, 4vw, 64px);
+  border: 0;
+  color: #fff7de;
+  background: linear-gradient(100deg, rgba(13, 46, 54, .91), rgba(24, 58, 60, .66) 48%, rgba(27, 52, 55, .32)), url('assets/campus-board-bg-v1.png') center / cover;
+  overflow: auto;
+  font-family: inherit;
+}
+.student-entry[open] { display: grid; place-items: center; }
+.student-entry::backdrop { background: #183f48; }
+.student-entry-layout { width: min(1040px, 100%); display: grid; grid-template-columns: minmax(0, 1fr) 420px; align-items: center; gap: 30px clamp(28px, 5vw, 80px); }
+.student-entry-story { align-self: stretch; display: flex; flex-direction: column; justify-content: center; }
+.student-entry-brand { display: flex; align-items: center; gap: 16px; font-size: 20px; font-weight: 800; letter-spacing: .06em; }
+.student-entry-brand span { padding: 6px 10px; border: 1px solid #fbdb925c; border-radius: 6px; color: #ffe3a5; font-size: 12px; font-weight: 500; letter-spacing: 0; }
+.student-entry-illustration { display: flex; align-items: center; gap: 16px; height: 110px; margin: 25px 0 5px; }
+.student-entry-illustration img { width: 106px; height: 86px; object-fit: contain; filter: drop-shadow(0 8px 10px #072e4480); }
+.student-entry-illustration span { color: #f6cb73; letter-spacing: 6px; font-size: 22px; }
+.student-entry-eyebrow { margin: 15px 0 12px; color: #eed398; font-size: 14px; letter-spacing: .16em; }
+.student-entry h1 { margin: 0; font-size: clamp(30px, 3.3vw, 46px); line-height: 1.4; letter-spacing: .02em; }
+.student-entry-intro { margin: 22px 0 30px; color: #d9e8df; font-size: 17px; line-height: 1.9; }
+.student-entry-journey { display: flex; gap: 16px; flex-wrap: wrap; color: #ffe5b3; font-size: 12px; }
+.student-entry-journey span { padding-top: 12px; border-top: 2px solid #d7bd7970; }
+.student-entry-paper { padding: 34px; color: #284651; background: #fff8e9; border: 1px solid #f5dba3; border-top: 6px solid #d4a459; border-radius: 20px; box-shadow: 0 22px 70px #0b242c66; }
+.student-entry-ticket { color: #a26e3f; letter-spacing: .12em; font-size: 12px; font-weight: 800; }
+.student-entry-paper h2 { margin: 12px 0; font-size: 26px; line-height: 1.4; }
+.student-entry-paper > p { margin: 0; color: #677970; font-size: 14px; line-height: 1.7; }
+.student-entry-form { display: flex; flex-direction: column; margin-top: 25px; }
+.student-entry-form label { margin: 0 0 9px; font-size: 14px; font-weight: 800; }
+.student-entry-form select, .student-entry-form input { width: 100%; height: 50px; padding: 0 14px; margin: 0 0 21px; border: 1px solid #b9c5b9; border-radius: 10px; color: #2b484d; background: #fffdf7; font: inherit; font-size: 16px; }
+.student-entry-form input { margin-bottom: 0; }
+.student-entry-form input::placeholder { color: #82938b; }
+.student-entry-form [aria-invalid="true"] { border-color: #b25341; }
+.student-entry-form :is(input, select, button):focus-visible { outline: 3px solid #c29643; outline-offset: 3px; }
+#student-entry-error { min-height: 38px; margin: 8px 0; color: #a44f3d; font-size: 13px; line-height: 1.5; }
+.student-entry-submit { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 52px; padding: 12px 18px; border: 1px solid #376b62; border-radius: 10px; background: #427d70; color: #fffbef; font: inherit; font-weight: 800; font-size: 17px; cursor: pointer; box-shadow: 0 4px 0 #2e5c54; }
+.student-entry-submit:hover { background: #356c60; }
+.student-entry-submit span { font-size: 24px; }
+.student-entry-paper .student-entry-note { margin-top: 24px; padding-top: 16px; border-top: 1px dashed #dac7a6; font-size: 12px; line-height: 1.8; }
+.student-entry-footer { grid-column: 1 / -1; margin: 0; color: #e2e8d6; font-size: 12px; letter-spacing: .1em; text-align: center; }
+.campus-shell .mission-kicker { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.campus-shell .student-menu-identity { padding: 6px; overflow-wrap: anywhere; color: #426655; font-size: 12px; }
+@media (max-width: 800px) {
+  .student-entry-layout { grid-template-columns: minmax(0, 440px); justify-content: center; gap: 20px; }
+  .student-entry-story { align-items: center; }
+  .student-entry-story h1, .student-entry-illustration, .student-entry-intro, .student-entry-eyebrow, .student-entry-journey { display: none; }
+  .student-entry-paper { padding: 26px; }
+  .student-entry-brand { font-size: 17px; }
+}
+@media (max-height: 650px) and (min-width: 801px) {
+  .student-entry { padding: 20px 40px; }
+  .student-entry-layout { gap: 16px 32px; }
+  .student-entry-paper { padding: 22px 30px; }
+  .student-entry-illustration { margin: 10px 0 0; height: 75px; }
+  .student-entry-form { margin-top: 15px; }
+}

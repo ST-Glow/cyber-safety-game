@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>糖果课堂｜30秒互动试玩</title>
+<link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="lesson1-overrides.css"><link rel="stylesheet" href="trial-study.css"><link rel="stylesheet" href="device-check.css">
+<script src="trial-config.js"></script><script src="assets/aliyun-oss-sdk.min.js"></script><script type="module" src="device-check.mjs"></script></head>
+<body class="device-check-page"><div id="app"></div>
+<dialog id="check-entry" aria-labelledby="check-title"><section class="check-paper"><span class="check-eyebrow">糖果课堂 · 互动试玩</span><h1 id="check-title">先玩30秒，<br>体验这段校园冒险。</h1><p>校园场景会自动运行，请试着点击卡牌和场景。结束后会保存本次互动记录和录像，老师可以了解大家的游玩情况。</p><form><label>班级<select name="class_id" required><option value="">请选择班级</option><option value="g7-01">初一1班</option><option value="g7-06">初一6班</option><option value="g7-other">其他班级</option></select></label><label>姓名<input name="student_name" maxlength="32" required autocomplete="name" placeholder="请输入你的姓名"></label><p class="check-note">只录制当前游玩标签页；不采集摄像头、麦克风。姓名用于保存本次游玩记录。</p><p class="check-error" role="alert"></p><button type="submit">开始互动试玩 →</button></form></section></dialog>
+<dialog id="check-result" aria-labelledby="result-title"><section class="check-paper"><span class="check-eyebrow">30秒试玩记录</span><h1 id="result-title">正在整理记录…</h1><p id="result-copy"></p><dl id="check-metrics"></dl><ul id="check-stages"></ul><p class="check-note">这是一次短时互动试玩。把姓名和游玩结果告诉老师即可。</p><div class="check-actions"><button id="retry-upload" hidden>重新保存记录</button><button id="download-report">下载互动记录 JSON</button><button id="repeat-check">再玩一次</button></div></section></dialog>
+</body></html>

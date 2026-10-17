@@ -11,6 +11,8 @@ const {
 } = require("./auth");
 const { loadConfig } = require("./config");
 const { createCloudAdapter, objectNames, objectPrefix } = require("./cloud");
+const { uploadErrorResponse } = require("./upload-errors");
+const { mountLesson1Trial, VERSION: LESSON1_TRIAL_VERSION } = require("./lesson1-trial");
 const { createCozeAdapter } = require("./coze");
 const {
   isKnownLevelId,
@@ -18,6 +20,7 @@ const {
   sanitizeAgentState,
   buildAgentMessage,
   filterAgentReply,
+  LESSON1_PROMPT,
 } = require("./agent-context");
 
 const LIMITS = {
@@ -49,7 +52,7 @@ function cozeErrorStatus(code) {
 
 function cozeErrorResponse(response, error, fallbackDiagnosticId = "") {
   const code = String(error.code || error.message || "coze_request_failed");
-  const status = cozeErrorStatus(code);
+  const status = [400, 403, 409, 429].includes(error.status) ? error.status : cozeErrorStatus(code);
   const diagnosticId = String(error.diagnosticId || fallbackDiagnosticId || "");
   if (status >= 500) {
     console.error(JSON.stringify({
@@ -122,6 +125,9 @@ function createApp(options = {}) {
     next();
   });
 
+  require("./classroom/routes").mountClassroom(app, { service: options.classroomService });
+  const lesson1Trial = mountLesson1Trial(app, { config, service: options.lesson1TrialService });
+
   app.get("/api/health", (request, response) => {
     response.json({
       ok: true,
@@ -168,19 +174,24 @@ function createApp(options = {}) {
     try {
       const body = request.body || {};
       const claims = verifyTicket(body.ticket, config.linkSecret);
+      const trialIdentity = claims.study_version === LESSON1_TRIAL_VERSION ? await lesson1Trial.authorizeAgent(claims, body) : null;
       const levelId = String(body.level_id || "");
+      if (levelId === 'g7_internet_l01' && claims.study_version !== LESSON1_TRIAL_VERSION) return errorResponse(response, 403, 'agent_condition_forbidden');
       if (!isKnownLevelId(levelId)) {
         errorResponse(response, 400, "agent_level_invalid");
         return;
       }
       const trigger = normalizeTrigger(body.trigger);
-      if (claims.condition === "passive" && trigger !== "manual") {
-        errorResponse(response, 403, "agent_condition_forbidden", "被动组只允许学生主动求助");
+      const automaticFamilies = { passive: [], proactive: ["idle", "no_progress"], reactive: ["repeated_failure", "quiz_error", "repeated_strategy"] };
+      if (trigger !== "manual" && automaticFamilies[claims.condition] && !automaticFamilies[claims.condition].includes(trigger)) {
+        errorResponse(response, 403, "agent_condition_forbidden", "当前组别不允许此类自动帮助");
         return;
       }
       const state = sanitizeAgentState(levelId, body.state);
       state.condition = claims.condition;
       state.study_version = claims.study_version;
+      // Group labels are for audit, never a different tutoring persona.
+      if (["proactive", "reactive"].includes(claims.condition)) { delete state.condition; delete state.study_version; }
       const message = String(body.message || "").trim();
       if (!message || message.length > 800) {
         errorResponse(response, 400, "coze_message_invalid", "问题内容应为 1 至 800 个字符");
@@ -190,7 +201,7 @@ function createApp(options = {}) {
         errorResponse(response, 503, "coze_not_configured", "智能体服务尚未完成配置");
         return;
       }
-      if (!config.aiPromptsConfigured || !config.aiLevelPrompts?.[levelId]) {
+      if (levelId !== 'g7_internet_l01' && (!config.aiPromptsConfigured || !config.aiLevelPrompts?.[levelId])) {
         errorResponse(response, 503, "agent_prompts_not_configured", config.aiPromptConfigError || "AI level profiles are not configured");
         return;
       }
@@ -205,13 +216,14 @@ function createApp(options = {}) {
         conversationId = session.conversation_id;
       }
 
-      const upstreamMessage = buildAgentMessage({
+      let upstreamMessage = buildAgentMessage({
         levelId,
-        levelPrompt: config.aiLevelPrompts[levelId],
+        levelPrompt: levelId === 'g7_internet_l01' ? LESSON1_PROMPT : config.aiLevelPrompts[levelId],
         trigger,
         state,
         studentMessage: message,
       });
+      if (trialIdentity?.student_name) upstreamMessage = upstreamMessage.split(trialIdentity.student_name).join('[学生]');
 
       const result = await coze.startChat({
         message: upstreamMessage,
@@ -248,12 +260,14 @@ function createApp(options = {}) {
     try {
       const body = request.body || {};
       const claims = verifyTicket(body.ticket, config.linkSecret);
+      if (claims.study_version === LESSON1_TRIAL_VERSION) await lesson1Trial.authorizeAgent(claims, body, true);
       const levelId = String(body.level_id || "");
+      if (levelId === 'g7_internet_l01' && claims.study_version !== LESSON1_TRIAL_VERSION) return errorResponse(response, 403, 'agent_condition_forbidden');
       if (!isKnownLevelId(levelId)) {
         errorResponse(response, 400, "agent_level_invalid");
         return;
       }
-      if (!config.aiPromptsConfigured || !config.aiLevelPrompts?.[levelId]) {
+      if (levelId !== 'g7_internet_l01' && (!config.aiPromptsConfigured || !config.aiLevelPrompts?.[levelId])) {
         errorResponse(response, 503, "agent_prompts_not_configured", config.aiPromptConfigError || "AI level profiles are not configured");
         return;
       }
@@ -280,7 +294,7 @@ function createApp(options = {}) {
       }));
       response.json({
         status: "completed",
-        reply: filterAgentReply(result.reply, config.aiLevelPrompts[levelId]),
+        reply: filterAgentReply(result.reply, levelId === 'g7_internet_l01' ? LESSON1_PROMPT : config.aiLevelPrompts[levelId], levelId),
         session,
         diagnostic_id: diagnosticId,
       });
@@ -290,10 +304,17 @@ function createApp(options = {}) {
   });
 
   app.post("/api/upload/credentials", json, async (request, response) => {
+    let phase = "verify_ticket";
     try {
       const claims = verifyTicket(request.body.ticket, config.linkSecret);
       const recordingAvailable = request.body.recording_available !== false;
+      if (claims.study_version === LESSON1_TRIAL_VERSION) {
+        if (!recordingAvailable) throw new Error("trial_recording_required");
+        await lesson1Trial.metadata(claims);
+      }
+      phase = "object_names";
       const objects = objectNames(claims, request.body.recording_extension, recordingAvailable);
+      phase = "check_manifest";
       const manifest = await cloud.head(objects.manifest, request);
       if (manifest.exists) {
         response.json({ status: "already_completed" });
@@ -313,36 +334,46 @@ function createApp(options = {}) {
         });
         return;
       }
+      phase = "assume_role";
       const credentials = await cloud.assumeRole(claims, objects, request);
       response.json({ mode: "oss", region: config.ossRegion, bucket: config.ossBucket, objects, credentials });
     } catch (error) {
       const status = error.message === "ticket_expired" ? 401 : 400;
-      errorResponse(response, status, error.message);
+      uploadErrorResponse(response, error, { phase, status, log: options.uploadErrorLog });
     }
   });
 
   app.post("/api/upload/complete", json, async (request, response) => {
+    let phase = "verify_ticket";
     try {
       const claims = verifyTicket(request.body.ticket, config.linkSecret);
       const recordingAvailable = request.body.recording_available !== false;
+      if (claims.study_version === LESSON1_TRIAL_VERSION && !recordingAvailable) throw new Error("trial_recording_required");
+      const trialMetadata = await lesson1Trial.metadata(claims);
       const objects = objectNames(claims, request.body.recording_extension, recordingAvailable);
+      phase = "check_uploaded_files";
       const [events, summary, recording] = await Promise.all([
         cloud.head(objects.events, request),
         cloud.head(objects.summary, request),
         cloud.head(objects.recording, request),
       ]);
+      phase = "validate_files";
       validateFile(events, "events");
       validateFile(summary, "summary");
       validateFile(recording, "recording");
+      if (trialMetadata && (!/^video\/(mp4|webm)(;|$)/i.test(recording.contentType) || recording.bytes > 256 * 1024 * 1024)) throw new Error("trial_recording_invalid");
       const status = recordingAvailable ? "complete" : "saved_with_warning";
       const manifest = {
         schema_version: 2,
         status,
         study_version: claims.study_version,
         condition: claims.condition,
+        ...(claims.data_phase ? { data_phase: claims.data_phase } : {}),
+        ...(claims.scaffold_policy_version ? { scaffold_policy_version: claims.scaffold_policy_version } : {}),
         class_id: claims.class_id,
         student_code: claims.student_code,
         upload_id: claims.upload_id,
+        ...(trialMetadata ? { trial: trialMetadata } : {}),
         completed_at: new Date().toISOString(),
         files: {
           events: { name: objects.events, bytes: events.bytes, etag: events.etag },
@@ -350,10 +381,11 @@ function createApp(options = {}) {
           recording: { name: objects.recording, bytes: recording.bytes, etag: recording.etag },
         },
       };
+      phase = "write_manifest";
       await cloud.writeManifest(objects.manifest, manifest, request);
       response.json({ status, files: manifest.files });
     } catch (error) {
-      errorResponse(response, 409, error.message);
+      uploadErrorResponse(response, error, { phase, status: 409, log: options.uploadErrorLog });
     }
   });
 
